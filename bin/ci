@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+docker compose exec -T web bundle exec rubocop
+docker compose exec -T web bundle exec brakeman --no-pager
+docker compose exec -T web bin/rails test
+docker compose run --rm frontend sh -lc "npm ci && npm run lint && npm run test:frontend && npm run build"

@@ -1,0 +1,13 @@
+.git
+.github
+.env*
+!.env.example
+node_modules
+dist
+log
+tmp
+storage
+coverage
+docs
+q
+q.pub

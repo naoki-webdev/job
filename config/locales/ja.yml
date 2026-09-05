@@ -1,0 +1,49 @@
+ja:
+  api:
+    errors:
+      unauthorized: "ログインしてください。"
+      invalid_login: "メールアドレスまたはパスワードが正しくありません。"
+      read_only_demo: "このデモではデータの追加・更新・削除はできません。"
+      invalid_origin: "安全確認に失敗しました。ページを再読み込みしてからやり直してください。"
+      invalid_filter: "絞り込み条件が正しくありません。"
+      invalid_request: "リクエストが正しくありません。"
+      not_found: "指定されたデータが見つかりません。"
+      too_many_requests: "リクエストが多すぎます。時間をおいて再度お試しください。"
+      internal_server_error: "サーバーエラーが発生しました。時間をおいて再度お試しください。"
+      company_logo_cleanup_failed: "求人情報は更新されましたが、会社ロゴの削除に失敗しました。時間をおいて再度お試しください。"
+      job_draft:
+        text_required: "求人票本文を入力してください。"
+        text_too_long: "求人票本文は%{limit}文字以内で入力してください。"
+  time:
+    formats:
+      csv: "%Y/%m/%d %H:%M"
+  csv:
+    headers:
+      id: "ID"
+      company_name: "会社名"
+      position: "職種"
+      status: "選考状況"
+      work_style: "働き方"
+      employment_type: "雇用形態"
+      salary_min: "年収下限"
+      salary_max: "年収上限"
+      tech_stack: "技術スタック"
+      location: "勤務地"
+      notes: "メモ"
+      score: "評価ポイント"
+      created_at: "作成日時"
+      updated_at: "更新日時"
+    enums:
+      status:
+        interested: "気になる"
+        applied: "応募済み"
+        interviewing: "面接中"
+        offer: "内定"
+        rejected: "見送り"
+      work_style:
+        full_remote: "フルリモート"
+        hybrid: "ハイブリッド"
+        onsite: "フル出社"
+      employment_type:
+        full_time: "正社員"
+        contract: "契約社員"

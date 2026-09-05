@@ -1,0 +1,31 @@
+:root {
+  font-family: "IBM Plex Sans JP", "Inter", "BIZ UDPGothic", "Noto Sans JP", "Segoe UI", sans-serif;
+  color: #172b4d;
+  background:
+    radial-gradient(circle at top left, rgba(12, 102, 228, 0.08), transparent 24%),
+    linear-gradient(180deg, #f7f8fa 0%, #eef1f5 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(12, 102, 228, 0.08), transparent 24%),
+    linear-gradient(180deg, #f7f8fa 0%, #eef1f5 100%);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.42), rgba(255,255,255,0.1)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,0.28) 0,
+      rgba(255,255,255,0.28) 1px,
+      transparent 1px,
+      transparent 24px
+    );
+}

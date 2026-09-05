@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: job-compare-dashboard
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    healthCheckPath: /up
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_LOG_TO_STDOUT
+        value: "true"
+      - key: RAILS_SERVE_STATIC_FILES
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ACTIVE_STORAGE_ACCESS_KEY_ID
+        sync: false
+      - key: ACTIVE_STORAGE_SECRET_ACCESS_KEY
+        sync: false
+      - key: ACTIVE_STORAGE_REGION
+        sync: false
+      - key: ACTIVE_STORAGE_BUCKET
+        sync: false
+      - key: ACTIVE_STORAGE_ENDPOINT
+        sync: false
+      - key: ACTIVE_STORAGE_FORCE_PATH_STYLE
+        value: "false"
+      - key: ADMIN_USER_EMAIL
+        sync: false
+      - key: ADMIN_USER_PASSWORD
+        sync: false
+      - key: ADMIN_USER_NAME
+        sync: false
+      - key: DEMO_USER_EMAIL
+        value: demo@example.com
+      - key: DEMO_USER_PASSWORD
+        sync: false
+      - key: RUN_DB_SEED_IF_EMPTY
+        value: "true"
+      - key: SECRET_KEY_BASE
+        generateValue: true
