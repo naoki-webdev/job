@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_22_090000) do
+ActiveRecord::Schema[8.0].define(version: 2026_09_09_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -76,6 +76,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_22_090000) do
     t.index ["tech_stack_id"], name: "index_job_tech_stacks_on_tech_stack_id"
   end
 
+  create_table "job_ai_evaluations", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "user_id", null: false
+    t.string "verdict", null: false
+    t.text "summary", default: "", null: false
+    t.jsonb "result_json", default: {}, null: false
+    t.string "model", null: false
+    t.string "prompt_version", null: false
+    t.string "input_digest", null: false
+    t.datetime "evaluated_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "evaluated_at"], name: "index_job_ai_evaluations_on_job_id_and_evaluated_at"
+    t.index ["job_id"], name: "index_job_ai_evaluations_on_job_id"
+    t.index ["input_digest"], name: "index_job_ai_evaluations_on_input_digest"
+    t.index ["user_id"], name: "index_job_ai_evaluations_on_user_id"
+  end
+
   create_table "jobs", force: :cascade do |t|
     t.string "company_name", null: false
     t.string "status", default: "interested", null: false
@@ -91,6 +109,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_22_090000) do
     t.bigint "location_id", null: false
     t.bigint "user_id", null: false
     t.string "source_url"
+    t.text "source_text", default: "", null: false
     t.index ["created_at"], name: "index_jobs_on_created_at"
     t.index ["location_id"], name: "index_jobs_on_location_id"
     t.index ["position_id"], name: "index_jobs_on_position_id"
@@ -208,6 +227,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_22_090000) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "activity_logs", "users"
   add_foreign_key "interview_questions", "users"
+  add_foreign_key "job_ai_evaluations", "jobs"
+  add_foreign_key "job_ai_evaluations", "users"
   add_foreign_key "job_tech_stacks", "jobs"
   add_foreign_key "job_tech_stacks", "tech_stacks"
   add_foreign_key "jobs", "locations"

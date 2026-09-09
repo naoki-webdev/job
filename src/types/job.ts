@@ -46,11 +46,36 @@ export type Job = {
   location: string;
   notes: string;
   source_url: string | null;
+  source_text?: string;
   company_logo_url: string | null;
   company_logo_filename: string | null;
   score: number;
   created_at: string;
   updated_at: string;
+  ai_evaluation?: JobAiEvaluation | null;
+};
+
+export type JobAiFinding = {
+  preference: string;
+  reason: string;
+  evidence: string | null;
+  evidence_verified?: boolean;
+};
+
+export type JobAiEvaluation = {
+  id: number;
+  verdict: "recommended" | "conditional" | "not_recommended" | "insufficient_information";
+  summary: string;
+  confidence: number;
+  matches: JobAiFinding[];
+  conflicts: JobAiFinding[];
+  unknowns: string[];
+  questions: string[];
+  model: string;
+  prompt_version: string;
+  input_digest: string;
+  stale: boolean;
+  evaluated_at: string;
 };
 
 export type JobsListMeta = {
@@ -99,6 +124,7 @@ export type JobFormPayload = Pick<
   | "notes"
 > & {
   source_url?: string | null;
+  source_text?: string;
   company_logo?: File | null;
   remove_company_logo?: boolean;
 };
@@ -127,6 +153,7 @@ export type JobDraftInsights = {
 export type JobDraftResponse = {
   mode: JobDraftMode;
   ai_available: boolean;
+  source_text?: string;
   draft: JobDraftPreview;
   insights: JobDraftInsights;
 };

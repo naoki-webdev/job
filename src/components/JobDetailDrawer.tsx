@@ -35,6 +35,8 @@ type JobDetailDrawerProps = {
   onDelete: () => void;
   deleting: boolean;
   statusUpdating?: boolean;
+  analyzing?: boolean;
+  onAnalyze?: () => void;
 };
 
 function SectionHeading({ children }: { children: string }) {
@@ -74,6 +76,8 @@ function JobDetailDrawer({
   onDelete,
   deleting,
   statusUpdating = false,
+  analyzing = false,
+  onAnalyze = () => {},
 }: JobDetailDrawerProps) {
   const scoreBreakdown = job ? buildScoreBreakdown(job, scoringPreference) : [];
   const priority = job ? getPriorityView(job.score, job.status) : null;
@@ -153,6 +157,118 @@ function JobDetailDrawer({
                     </Select>
                   </FormControl>
                 </Stack>
+              </Box>
+
+              <Divider />
+
+              {job.source_text && (
+                <>
+                  <Box component="section" sx={{ px: 2.5, py: 2.25 }}>
+                    <SectionHeading>{t("jobs.detail.source_text")}</SectionHeading>
+                    <Typography
+                      variant="body2"
+                      sx={{ mt: 1.25, maxHeight: 260, overflowY: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+                    >
+                      {job.source_text}
+                    </Typography>
+                  </Box>
+                  <Divider />
+                </>
+              )}
+
+              <Box component="section" sx={{ px: 2.5, py: 2.25 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
+                  <SectionHeading>{t("jobs.detail.ai_title")}</SectionHeading>
+                  {job.ai_evaluation && (
+                    <Chip
+                      size="small"
+                      color={job.ai_evaluation.verdict === "recommended" ? "success" : "default"}
+                      variant="outlined"
+                      label={t(`jobs.detail.ai_verdict.${job.ai_evaluation.verdict}`)}
+                    />
+                  )}
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  {t("jobs.detail.ai_hint")}
+                </Typography>
+                {job.ai_evaluation ? (
+                  <Stack spacing={1.25} sx={{ mt: 1.5 }}>
+                    {job.ai_evaluation.stale && (
+                      <Typography variant="body2" color="warning.main">
+                        {t("jobs.detail.ai_stale")}
+                      </Typography>
+                    )}
+                    <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                      {job.ai_evaluation.summary}
+                    </Typography>
+                    {job.ai_evaluation.matches.length > 0 && (
+                      <Box>
+                        <Typography variant="body2" fontWeight={700} color="success.main">
+                          {t("jobs.detail.ai_matches")}
+                        </Typography>
+                        {job.ai_evaluation.matches.map((finding, index) => (
+                          <Typography key={`match-${index}`} variant="body2" sx={{ mt: 0.5 }}>
+                            ・{finding.preference}: {finding.reason}{finding.evidence ? `「${finding.evidence}」` : ""}
+                          </Typography>
+                        ))}
+                      </Box>
+                    )}
+                    {job.ai_evaluation.conflicts.length > 0 && (
+                      <Box>
+                        <Typography variant="body2" fontWeight={700} color="error.main">
+                          {t("jobs.detail.ai_conflicts")}
+                        </Typography>
+                        {job.ai_evaluation.conflicts.map((finding, index) => (
+                          <Typography key={`conflict-${index}`} variant="body2" sx={{ mt: 0.5 }}>
+                            ・{finding.preference}: {finding.reason}{finding.evidence ? `「${finding.evidence}」` : ""}
+                          </Typography>
+                        ))}
+                      </Box>
+                    )}
+                    {job.ai_evaluation.unknowns.length > 0 && (
+                      <Box>
+                        <Typography variant="body2" fontWeight={700}>
+                          {t("jobs.detail.ai_unknowns")}
+                        </Typography>
+                        {job.ai_evaluation.unknowns.map((unknown, index) => (
+                          <Typography key={`unknown-${index}`} variant="body2" sx={{ mt: 0.5 }}>
+                            ・{unknown}
+                          </Typography>
+                        ))}
+                      </Box>
+                    )}
+                    {job.ai_evaluation.questions.length > 0 && (
+                      <Box>
+                        <Typography variant="body2" fontWeight={700}>
+                          {t("jobs.detail.ai_questions")}
+                        </Typography>
+                        {job.ai_evaluation.questions.map((question, index) => (
+                          <Typography key={`question-${index}`} variant="body2" sx={{ mt: 0.5 }}>
+                            ・{question}
+                          </Typography>
+                        ))}
+                      </Box>
+                    )}
+                    <Typography variant="caption" color="text.secondary">
+                      {t("jobs.detail.ai_confidence")}: {Math.round(job.ai_evaluation.confidence * 100)}%
+                    </Typography>
+                  </Stack>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                    {job.source_text ? t("jobs.detail.ai_not_run") : t("jobs.detail.ai_source_required")}
+                  </Typography>
+                )}
+                {!readOnly && job.source_text && (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    sx={{ mt: 1.5 }}
+                    onClick={onAnalyze}
+                    disabled={analyzing}
+                  >
+                    {analyzing ? t("jobs.detail.ai_running") : t("jobs.detail.ai_analyze")}
+                  </Button>
+                )}
               </Box>
 
               <Divider />

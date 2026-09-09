@@ -9,6 +9,7 @@ export type JobFormDraft = Omit<JobFormPayload, "position_id" | "location_id" | 
   salary_min: number | "";
   salary_max: number | "";
   source_url: string;
+  source_text: string;
   company_logo: File | null;
   remove_company_logo: boolean;
 };
@@ -34,6 +35,7 @@ export const emptyForm: JobFormDraft = {
   location_id: "",
   notes: "",
   source_url: "",
+  source_text: "",
   company_logo: null,
   remove_company_logo: false,
 };
@@ -118,6 +120,7 @@ export function buildFormValues(job: Job | null, draft?: Partial<JobFormPayload>
       location_id: job.location_id,
       notes: job.notes,
       source_url: job.source_url ?? "",
+      source_text: job.source_text ?? "",
       company_logo: null,
       remove_company_logo: false,
     };
@@ -138,6 +141,7 @@ export function buildFormValues(job: Job | null, draft?: Partial<JobFormPayload>
     location_id: draft.location_id ?? emptyForm.location_id,
     notes: draft.notes ?? emptyForm.notes,
     source_url: draft.source_url ?? emptyForm.source_url,
+    source_text: draft.source_text ?? emptyForm.source_text,
   };
 }
 
@@ -169,6 +173,7 @@ export function toJobFormPayload(values: JobFormDraft): JobFormPayload {
     salary_min: Number(values.salary_min),
     salary_max: Number(values.salary_max),
     source_url: values.source_url.trim() || null,
+    source_text: values.source_text.trim(),
   };
 
   if (!values.company_logo) delete payload.company_logo;

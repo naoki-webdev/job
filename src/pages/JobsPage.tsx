@@ -41,6 +41,7 @@ export default function JobsPage() {
     submittingForm,
     deleting: deletingJob,
     statusUpdating,
+    analyzing,
     summaryItems,
     recommendedIds: recommendedJobIds,
   } = jobState;
@@ -72,6 +73,7 @@ export default function JobsPage() {
     handleStatusChange,
     handleSubmitForm,
     handleDeleteJob,
+    handleAnalyzeJob,
     handleSubmitScoring,
     handleCreateLocation,
     handleUpdateLocation,
@@ -168,6 +170,8 @@ export default function JobsPage() {
             onDelete={handleDeleteJob}
             deleting={deletingJob}
             statusUpdating={statusUpdating}
+            analyzing={analyzing}
+            onAnalyze={handleAnalyzeJob}
           />
         </Suspense>
       )}

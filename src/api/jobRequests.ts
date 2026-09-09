@@ -64,6 +64,13 @@ export async function updateJob(id: number, job: JobUpdatePayload): Promise<Job>
   return requestJson<Job>(`${API_BASE_URL}/api/jobs/${id}`, buildJobRequestInit("PATCH", job));
 }
 
+export async function analyzeJob(id: number): Promise<Job> {
+  return requestJson<Job>(`${API_BASE_URL}/api/jobs/${id}/analyze`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 export async function deleteJob(id: number): Promise<void> {
   return requestVoid(`${API_BASE_URL}/api/jobs/${id}`, { method: "DELETE" });
 }

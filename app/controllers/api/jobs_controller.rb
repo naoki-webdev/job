@@ -1,6 +1,11 @@
 module Api
   class JobsController < ApplicationController
-    before_action :set_job, only: [ :show, :update, :destroy ]
+    before_action :set_job, only: [ :show, :update, :destroy, :analyze ]
+
+    rate_limit to: 5, within: 5.minutes,
+      by: -> { current_user ? "user:#{current_user.id}" : "ip:#{request.remote_ip}" },
+      with: -> { render_rate_limit_error },
+      only: :analyze
 
     def index
       query = JobsQuery.new(params: params, scope: current_user.jobs)
@@ -25,7 +30,54 @@ module Api
     end
 
     def show
-      render json: JobSerializer.new(@job, url_options: url_options).as_json
+      render json: JobSerializer.new(@job, url_options: url_options, include_ai_analysis: true).as_json
+    end
+
+    def analyze
+      unless current_user.ai_enabled?
+        return render_api_error(
+          [ "このアカウントではAI判定を利用できません。" ],
+          status: :forbidden,
+          code: "AI_FEATURE_DISABLED"
+        )
+      end
+
+      result = JobAnalysis::Analyzer.new(job: @job, user: current_user).call
+      evaluation = @job.job_ai_evaluations.create!(
+        user: current_user,
+        verdict: result.fetch("verdict"),
+        summary: result.fetch("summary"),
+        result_json: result.except("model", "prompt_version", "input_digest", "evaluated_at"),
+        model: result.fetch("model"),
+        prompt_version: result.fetch("prompt_version"),
+        input_digest: result.fetch("input_digest"),
+        evaluated_at: result.fetch("evaluated_at")
+      )
+      record_activity!("job.ai_analyze", @job, metadata: { evaluation_id: evaluation.id, verdict: evaluation.verdict })
+
+      render json: JobSerializer.new(@job.reload, url_options: url_options, include_ai_analysis: true).as_json
+    rescue ArgumentError => error
+      message = if error.message == "source_text is required"
+        "求人本文を保存してからAI判定を実行してください。"
+      else
+        "求人本文が長すぎます。50,000文字以内で保存してください。"
+      end
+      render_api_error([ message ], status: :unprocessable_entity, code: "JOB_ANALYSIS_INPUT_INVALID")
+    rescue JobAnalysis::AiAnalyzer::Error => error
+      Rails.logger.warn(
+        {
+          event: "job_ai_analysis_failed",
+          service: "gemini",
+          request_id: request.request_id,
+          user_id: current_user&.id,
+          error_class: error.class.name
+        }.to_json
+      )
+      render_api_error(
+        [ "AI判定サービスを利用できません。時間をおいて再試行してください。" ],
+        status: :service_unavailable,
+        code: "JOB_ANALYSIS_UNAVAILABLE"
+      )
     end
 
     def create
@@ -62,7 +114,7 @@ module Api
         )
       end
 
-      render json: JobSerializer.new(@job, url_options: url_options).as_json
+      render json: JobSerializer.new(@job, url_options: url_options, include_ai_analysis: true).as_json
     rescue ActiveRecord::RecordInvalid => error
       errors = @job.errors.full_messages
       errors = [ error.message ] if errors.empty?
@@ -112,7 +164,8 @@ module Api
         :salary_min,
         :salary_max,
         :notes,
-        :source_url
+        :source_url,
+        :source_text
       )
     end
 

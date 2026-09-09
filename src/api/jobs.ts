@@ -12,6 +12,7 @@ export {
   createJob,
   deleteJob,
   downloadJobsCsv,
+  analyzeJob,
   fetchJob,
   fetchJobs,
   updateJob,

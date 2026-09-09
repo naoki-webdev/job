@@ -101,6 +101,29 @@ class JobTest < ActiveSupport::TestCase
     assert_includes job.errors[:location], "must belong to the same user"
   end
 
+  test "locks the owner before calculating the score" do
+    locked_user = Minitest::Mock.new
+    locked_user.expect(:find, @user, [ @user.id ])
+    User.stub(:lock, locked_user) do
+      job = Job.new(
+        user: @user,
+        company_name: "ロック確認会社",
+        position: @position,
+        status: "interested",
+        work_style: "hybrid",
+        employment_type: "full_time",
+        salary_min: 5_000_000,
+        salary_max: 7_000_000,
+        location: @location,
+        notes: ""
+      )
+      job.tech_stacks = [ @rails ]
+
+      job.save!
+    end
+    locked_user.verify
+  end
+
   private
 
   def build_job(overrides = {})

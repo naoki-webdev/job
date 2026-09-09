@@ -129,6 +129,7 @@ ja:
       basic_information_title: "基本情報"
       total_score: "評価ポイント"
       source_url: "求人URL"
+      source_text: "求人本文"
       status: "選考状況"
       work_style: "働き方"
       employment_type: "雇用形態"
@@ -139,6 +140,23 @@ ja:
       score_hint: "現在の条件では、評価ポイントに加点・減点される項目がありません。"
       updated_at: "更新日時"
       delete_confirm: "この求人を削除しますか？"
+      ai_title: "AI求人判定"
+      ai_hint: "登録した希望条件と求人本文を照合します。判定は必ず原文と一緒に確認してください。"
+      ai_not_run: "まだAI判定を実行していません。"
+      ai_source_required: "求人本文を保存するとAI判定を実行できます。"
+      ai_stale: "本文または希望条件が変わったため、この判定は古い可能性があります。"
+      ai_analyze: "AI判定を実行"
+      ai_running: "判定中..."
+      ai_matches: "合っている点"
+      ai_conflicts: "気になる点"
+      ai_unknowns: "未確認の点"
+      ai_questions: "面接で確認する質問"
+      ai_confidence: "確信度"
+      ai_verdict:
+        recommended: "おすすめ"
+        conditional: "条件付き"
+        not_recommended: "おすすめしない"
+        insufficient_information: "情報不足"
     score_breakdown:
       full_remote: "フルリモート"
       hybrid: "ハイブリッド"
@@ -168,6 +186,9 @@ ja:
       logo_removed: "保存すると画像を削除します。"
       source_url: "求人URL"
       source_url_placeholder: "https://"
+      source_text: "求人本文"
+      source_text_placeholder: "求人票の本文を貼り付けて保存"
+      source_text_hint: "AI判定の根拠として保存されます。"
     salary_range: "¥%{min}〜¥%{max}"
   scoring:
     remote_section: "働き方"
@@ -246,6 +267,8 @@ ja:
     update_master_data: "マスタデータの更新に失敗しました。"
     export_csv: "CSV出力に失敗しました。"
     import_job: "求人取り込みに失敗しました。"
+
+    analyze_job: "AI求人判定に失敗しました。時間をおいて再試行してください。"
 
   validation:
     required: "入力してください。"

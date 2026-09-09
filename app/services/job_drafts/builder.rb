@@ -16,6 +16,7 @@ module JobDrafts
       {
         mode: actual_mode,
         ai_available: AiExtractor.available?,
+        source_text: @text,
         draft: build_draft(raw),
         insights: build_insights(raw)
       }

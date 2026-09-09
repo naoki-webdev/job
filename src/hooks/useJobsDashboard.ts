@@ -22,7 +22,7 @@ export function useJobsDashboard() {
     loading,
     loadJobs,
     refreshSelectedJob,
-    openJobPreview,
+    handleRowClick,
     handleOpenCreateForm,
   } = jobsList;
   const {
@@ -72,10 +72,10 @@ export function useJobsDashboard() {
     }
 
     if (demoState === "detail" && jobs[0]) {
-      openJobPreview(jobs[0]);
+      void handleRowClick(jobs[0].id);
       setDemoStateApplied(true);
     }
-  }, [demoStateApplied, handleOpenCreateForm, jobs, loading, openJobPreview, openMasterData]);
+  }, [demoStateApplied, handleOpenCreateForm, handleRowClick, jobs, loading, openMasterData]);
 
   const reloadJobsAndSelection = useCallback(async () => {
     await loadJobs();
@@ -202,6 +202,7 @@ export function useJobsDashboard() {
       submittingForm: jobsList.submittingForm,
       deleting: jobsList.deletingJob,
       statusUpdating: jobsList.statusUpdating,
+      analyzing: jobsList.analyzingJob ?? false,
       summaryItems: jobsList.summaryItems,
       recommendedIds: jobsList.recommendedJobIds,
     },
@@ -260,6 +261,7 @@ export function useJobsDashboard() {
       handleStatusChange: jobsList.handleStatusChange,
       handleSubmitForm: jobsList.handleSubmitForm,
       handleDeleteJob: jobsList.handleDeleteJob,
+      handleAnalyzeJob: jobsList.handleAnalyzeJob ?? (async () => {}),
       handleSubmitScoring,
       handleCreatePosition,
       handleUpdatePosition,

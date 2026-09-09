@@ -186,6 +186,72 @@ class JobsApiTest < ActionDispatch::IntegrationTest
     assert_equal @user.id, ActivityLog.last.user_id
   end
 
+  test "stores the source text and exposes it only in the detailed response" do
+    source_text = "Railsエンジニア／フルリモート／年収600万円以上"
+
+    post "/api/jobs",
+      params: {
+        job: {
+          company_name: "本文保存テスト",
+          position_id: @backend.id,
+          status: "interested",
+          work_style: "full_remote",
+          employment_type: "full_time",
+          salary_min: 6_000_000,
+          salary_max: 8_000_000,
+          tech_stack_ids: [ @rails.id ],
+          location_id: @tokyo.id,
+          notes: "",
+          source_text: source_text
+        }
+      },
+      headers: @headers,
+      as: :json
+
+    assert_response :created
+    created_body = JSON.parse(response.body)
+    assert_nil created_body["source_text"]
+
+    get "/api/jobs/#{created_body["id"]}", headers: @headers
+
+    assert_response :success
+    assert_equal source_text, JSON.parse(response.body)["source_text"]
+  end
+
+  test "persists an AI analysis as a versioned evaluation" do
+    @user.update!(ai_enabled: true)
+    @job1.update!(source_text: "Rails開発とフルリモートの求人本文")
+
+    analysis = {
+      "verdict" => "conditional",
+      "summary" => "確認事項があります。",
+      "confidence" => 0.8,
+      "matches" => [ { "preference" => "Rails", "reason" => "経験に合う", "evidence" => "Rails" } ],
+      "conflicts" => [],
+      "unknowns" => [ "評価制度" ],
+      "questions" => [ "評価制度" ],
+      "preference_snapshot" => {},
+      "model" => "test-model",
+      "prompt_version" => "test-prompt-v1",
+      "input_digest" => "test-digest",
+      "evaluated_at" => Time.current
+    }
+    analyzer = Minitest::Mock.new
+    analyzer.expect(:call, analysis)
+
+    JobAnalysis::Analyzer.stub(:new, ->(*_args, **_kwargs) { analyzer }) do
+      post "/api/jobs/#{@job1.id}/analyze", headers: @headers, as: :json
+    end
+
+    assert_response :success
+    assert analyzer.verify
+    evaluation = JobAiEvaluation.order(:id).last
+    assert_equal "conditional", evaluation.verdict
+    assert_equal "test-prompt-v1", evaluation.prompt_version
+    assert_equal evaluation.id, JSON.parse(response.body).dig("ai_evaluation", "id")
+    assert_equal "job.ai_analyze", ActivityLog.last.action
+  end
+
   test "rejects inactive masters when creating a job" do
     [
       [ @backend, { position_id: @backend.id } ],

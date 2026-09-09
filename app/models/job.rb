@@ -1,11 +1,14 @@
 class Job < ApplicationRecord
   ALLOWED_LOGO_CONTENT_TYPES = %w[image/gif image/jpeg image/png image/svg+xml image/webp].freeze
+  SOURCE_TEXT_MAX_LENGTH = 50_000
 
   belongs_to :user
   belongs_to :position
   belongs_to :location
   has_many :job_tech_stacks, dependent: :destroy
   has_many :tech_stacks, -> { ordered }, through: :job_tech_stacks
+  has_many :job_ai_evaluations, dependent: :destroy
+  has_one :latest_ai_evaluation, -> { order(evaluated_at: :desc, id: :desc) }, class_name: "JobAiEvaluation"
   has_one_attached :company_logo
 
   enum :status, {
@@ -38,10 +41,12 @@ class Job < ApplicationRecord
   validates :tech_stacks, presence: true
   validates :location, presence: true
   validates :source_url, length: { maximum: 2048 }, format: { with: %r{\Ahttps?://.+\z}i, allow_blank: true }
+  validates :source_text, length: { maximum: SOURCE_TEXT_MAX_LENGTH }
   validate :company_logo_must_be_image
   validate :company_logo_must_be_small_enough
   validate :master_records_belong_to_user
 
+  before_save :lock_user_for_score_recalculation
   before_save :set_score
 
   delegate :name, to: :position, prefix: true, allow_nil: true
@@ -79,5 +84,9 @@ class Job < ApplicationRecord
 
   def set_score
     self.score = JobScoreCalculator.call(self)
+  end
+
+  def lock_user_for_score_recalculation
+    User.lock.find(user_id) if user_id.present?
   end
 end

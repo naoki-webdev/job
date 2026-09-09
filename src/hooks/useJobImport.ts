@@ -84,6 +84,7 @@ export function useJobImport({ openCreateForm }: UseJobImportParams) {
       location_id: draft.location_id ?? undefined,
       source_url: draft.source_url ?? undefined,
     };
+    if (importResult.source_text) formDraft.source_text = importResult.source_text;
 
     setImportOpen(false);
     openCreateForm(formDraft);

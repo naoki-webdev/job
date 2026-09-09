@@ -117,6 +117,7 @@ describe("JobFormDrawer", () => {
       location_id: 2,
       notes: "比較優先度が高い求人です。",
       source_url: null,
+      source_text: "",
     });
   }, 10000);
 

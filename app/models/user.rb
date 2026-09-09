@@ -7,6 +7,7 @@ class User < ApplicationRecord
   has_many :tech_stacks, dependent: :destroy
   has_many :activity_logs, dependent: :destroy
   has_many :user_sessions, dependent: :destroy
+  has_many :job_ai_evaluations, dependent: :destroy
   has_many :positive_keywords, dependent: :destroy
   has_many :negative_keywords, dependent: :destroy
   has_many :interview_questions, dependent: :destroy

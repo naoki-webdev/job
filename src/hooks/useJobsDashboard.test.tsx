@@ -37,6 +37,7 @@ function buildJobsListMock(overrides = {}) {
     submittingForm: false,
     deletingJob: false,
     statusUpdating: false,
+    analyzingJob: false,
     error: null,
     formError: null,
     summaryItems: [],
@@ -59,6 +60,7 @@ function buildJobsListMock(overrides = {}) {
     handleStatusChange: vi.fn(),
     handleSubmitForm: vi.fn(),
     handleDeleteJob: vi.fn(),
+    handleAnalyzeJob: vi.fn(),
     handleExportCsv: vi.fn(),
     ...overrides,
   };

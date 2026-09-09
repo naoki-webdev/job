@@ -12,7 +12,9 @@ Rails.application.routes.draw do
     resources :positive_keywords, only: [ :index, :create, :update, :destroy ]
     resources :negative_keywords, only: [ :index, :create, :update, :destroy ]
     resources :interview_questions, only: [ :index, :create, :update, :destroy ]
-    resources :jobs, only: [ :index, :show, :create, :update, :destroy ]
+    resources :jobs, only: [ :index, :show, :create, :update, :destroy ] do
+      post :analyze, on: :member
+    end
   end
 
   root "frontend#index"

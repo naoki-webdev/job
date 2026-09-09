@@ -297,6 +297,18 @@ function JobFormDrawer({
             size="small"
           />
 
+          <TextField
+            label={t("jobs.form.source_text")}
+            placeholder={t("jobs.form.source_text_placeholder")}
+            value={formValues.source_text}
+            onChange={(event) => handleChange("source_text", event.target.value)}
+            onBlur={() => handleBlur("source_text")}
+            multiline
+            minRows={6}
+            size="small"
+            helperText={t("jobs.form.source_text_hint")}
+          />
+
           <Stack direction="row" spacing={1.5} justifyContent="flex-end">
             <Button variant="text" onClick={onClose} disabled={submitting}>
               {t("actions.cancel")}

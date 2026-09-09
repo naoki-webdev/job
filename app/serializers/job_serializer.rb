@@ -5,13 +5,14 @@ class JobSerializer
     jobs.map { |job| new(job, url_options: url_options).as_json }
   end
 
-  def initialize(job, url_options: nil)
+  def initialize(job, url_options: nil, include_ai_analysis: false)
     @job = job
     @url_options = url_options
+    @include_ai_analysis = include_ai_analysis
   end
 
   def as_json(*)
-    {
+    payload = {
       "id" => @job.id,
       "company_name" => @job.company_name,
       "position_id" => @job.position_id,
@@ -36,6 +37,13 @@ class JobSerializer
       "position_master" => serialize_master(@job.position),
       "location_master" => serialize_master(@job.location)
     }
+
+    return payload unless @include_ai_analysis
+
+    payload.merge(
+      "source_text" => @job.source_text,
+      "ai_evaluation" => serialize_ai_evaluation
+    )
   end
 
   private
@@ -54,5 +62,21 @@ class JobSerializer
 
   def serialize_master(record)
     record&.as_json(only: MASTER_DATA_FIELDS)
+  end
+
+  def serialize_ai_evaluation
+    evaluation = @job.latest_ai_evaluation
+    return unless evaluation
+
+    evaluation.result_json.merge(
+      "id" => evaluation.id,
+      "verdict" => evaluation.verdict,
+      "summary" => evaluation.summary,
+      "model" => evaluation.model,
+      "prompt_version" => evaluation.prompt_version,
+      "input_digest" => evaluation.input_digest,
+      "stale" => evaluation.stale?,
+      "evaluated_at" => evaluation.evaluated_at
+    )
   end
 end

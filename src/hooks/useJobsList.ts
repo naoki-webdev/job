@@ -4,6 +4,7 @@ import {
   createJob,
   deleteJob,
   downloadJobsCsv,
+  analyzeJob,
   fetchJob,
   fetchJobs,
   getApiErrorMessage,
@@ -47,6 +48,7 @@ export function useJobsList() {
   const [submittingForm, setSubmittingForm] = useState(false);
   const [deletingJob, setDeletingJob] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [analyzingJob, setAnalyzingJob] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [summaryCounts, setSummaryCounts] = useState({
@@ -333,6 +335,28 @@ export function useJobsList() {
     }
   }, [loadJobs, selectedJob]);
 
+  const handleAnalyzeJob = useCallback(async () => {
+    if (!selectedJob) return;
+
+    const jobId = selectedJob.id;
+    setAnalyzingJob(true);
+    setError(null);
+
+    try {
+      const analyzed = await analyzeJob(jobId);
+      if (selectedJob?.id !== jobId) return;
+
+      setSelectedJob(analyzed);
+      setJobs((prev) => prev.map((job) => (job.id === jobId ? analyzed : job)));
+      setRankingJobs((prev) => prev.map((job) => (job.id === jobId ? analyzed : job)));
+      await loadJobs();
+    } catch (error) {
+      setError(getApiErrorMessage(error, t("errors.analyze_job")));
+    } finally {
+      setAnalyzingJob(false);
+    }
+  }, [loadJobs, selectedJob]);
+
   const handleExportCsv = useCallback(async () => {
     setError(null);
 
@@ -397,6 +421,7 @@ export function useJobsList() {
     submittingForm,
     deletingJob,
     statusUpdating,
+    analyzingJob,
     error,
     formError,
     summaryItems,
@@ -419,6 +444,7 @@ export function useJobsList() {
     handleStatusChange,
     handleSubmitForm,
     handleDeleteJob,
+    handleAnalyzeJob,
     handleExportCsv,
   };
 }
