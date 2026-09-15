@@ -7,6 +7,7 @@ import type { JobFormPayload } from "../types/job";
 import { useJobsList } from "./useJobsList";
 import {
   ApiError,
+  analyzeJob,
   createJob,
   deleteJob,
   downloadJobsCsv,
@@ -20,6 +21,7 @@ vi.mock("../api/jobs", async () => {
 
   return {
     ...actual,
+    analyzeJob: vi.fn(),
     createJob: vi.fn(),
     deleteJob: vi.fn(),
     downloadJobsCsv: vi.fn(),
@@ -82,6 +84,56 @@ afterEach(() => {
 });
 
 describe("useJobsList", () => {
+  it.each(["row", "preview", "close", "edit", "delete"] as const)("ignores a completed analysis after changing the detail via %s", async (action) => {
+    let resolveAnalysis!: (job: ReturnType<typeof buildJob>) => void;
+    vi.mocked(analyzeJob).mockReturnValueOnce(new Promise((resolve) => { resolveAnalysis = resolve; }));
+    const { result } = renderHook(() => useJobsList());
+    act(() => result.current.openJobPreview(buildJob({ id: 1 })));
+    let request!: Promise<void>;
+    act(() => { request = result.current.handleAnalyzeJob(); });
+    expect(result.current.analyzingJob).toBe(true);
+
+    await act(async () => {
+      if (action === "row") {
+        mockedFetchJob.mockResolvedValueOnce(buildJob({ id: 2 }));
+        await result.current.handleRowClick(2);
+      } else if (action === "preview") result.current.openJobPreview(buildJob({ id: 2 }));
+      else if (action === "close") result.current.handleCloseDrawer();
+      else if (action === "delete") await result.current.handleDeleteJob();
+      else result.current.handleOpenEditForm();
+    });
+    await act(async () => {
+      resolveAnalysis(buildJob({ id: 1, company_name: "Stale analysis" }));
+      await request;
+    });
+
+    expect(result.current.selectedJob?.id).toBe(action === "delete" ? undefined : action === "row" || action === "preview" ? 2 : 1);
+    expect(result.current.selectedJob?.company_name).not.toBe("Stale analysis");
+    expect(result.current.analyzingJob).toBe(false);
+    expect(mockedFetchJobs).toHaveBeenCalledTimes(action === "delete" ? 2 : 0);
+  });
+
+  it("does not clear the next analysis loading state or show the previous error", async () => {
+    let rejectFirst!: (error: Error) => void;
+    let resolveSecond!: (job: ReturnType<typeof buildJob>) => void;
+    vi.mocked(analyzeJob)
+      .mockReturnValueOnce(new Promise((_, reject) => { rejectFirst = reject; }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveSecond = resolve; }));
+    const { result } = renderHook(() => useJobsList());
+    act(() => result.current.openJobPreview(buildJob({ id: 1 })));
+    let first!: Promise<void>;
+    act(() => { first = result.current.handleAnalyzeJob(); });
+    act(() => result.current.openJobPreview(buildJob({ id: 2 })));
+    let second!: Promise<void>;
+    act(() => { second = result.current.handleAnalyzeJob(); });
+    await act(async () => { rejectFirst(new Error("old error")); await first; });
+    expect(result.current.analyzingJob).toBe(true);
+    expect(result.current.error).toBeNull();
+    await act(async () => { resolveSecond(buildJob({ id: 2, company_name: "Analyzed" })); await second; });
+    expect(result.current.selectedJob?.company_name).toBe("Analyzed");
+    expect(result.current.analyzingJob).toBe(false);
+  });
+
   it("loads jobs and updates list state", async () => {
     const { result } = renderHook(() => useJobsList());
 

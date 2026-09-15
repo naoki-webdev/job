@@ -83,7 +83,10 @@ class Job < ApplicationRecord
   end
 
   def set_score
-    self.score = JobScoreCalculator.call(self)
+    self.score = self.class.uncached { JobScoreCalculator.call(self, fresh_master_weights: true) }
+    # A concurrent master update may have changed the stored score, even if
+    # the newly calculated value equals this instance's original value.
+    score_will_change!
   end
 
   def lock_user_for_score_recalculation

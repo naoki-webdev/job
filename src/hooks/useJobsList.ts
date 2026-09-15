@@ -28,6 +28,7 @@ export function useJobsList() {
   const detailRequestSequence = useRef(0);
   const detailAbortController = useRef<AbortController | null>(null);
   const statusRequestSequence = useRef(0);
+  const analysisRequestSequence = useRef(0);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [rankingJobs, setRankingJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -129,6 +130,7 @@ export function useJobsList() {
       jobsAbortController.current?.abort();
       detailRequestSequence.current += 1;
       detailAbortController.current?.abort();
+      analysisRequestSequence.current += 1;
     };
   }, []);
 
@@ -136,6 +138,8 @@ export function useJobsList() {
     detailRequestSequence.current += 1;
     detailAbortController.current?.abort();
     detailAbortController.current = null;
+    analysisRequestSequence.current += 1;
+    setAnalyzingJob(false);
   }, []);
 
   const refreshSelectedJob = useCallback(async () => {
@@ -253,12 +257,13 @@ export function useJobsList() {
   const handleOpenEditForm = useCallback(() => {
     if (!selectedJob) return;
 
+    cancelDetailRequest();
     setFormMode("edit");
     setFormError(null);
     setFormInitialDraft(null);
     setDrawerOpen(false);
     setFormOpen(true);
-  }, [selectedJob]);
+  }, [cancelDetailRequest, selectedJob]);
 
   const handleCloseForm = useCallback(() => {
     setFormOpen(false);
@@ -319,6 +324,7 @@ export function useJobsList() {
   const handleDeleteJob = useCallback(async () => {
     if (!selectedJob || !window.confirm(t("jobs.detail.delete_confirm"))) return;
 
+    cancelDetailRequest();
     setDeletingJob(true);
     setError(null);
 
@@ -333,27 +339,29 @@ export function useJobsList() {
     } finally {
       setDeletingJob(false);
     }
-  }, [loadJobs, selectedJob]);
+  }, [cancelDetailRequest, loadJobs, selectedJob]);
 
   const handleAnalyzeJob = useCallback(async () => {
     if (!selectedJob) return;
 
     const jobId = selectedJob.id;
+    const requestSequence = ++analysisRequestSequence.current;
     setAnalyzingJob(true);
     setError(null);
 
     try {
       const analyzed = await analyzeJob(jobId);
-      if (selectedJob?.id !== jobId) return;
+      if (requestSequence !== analysisRequestSequence.current) return;
 
       setSelectedJob(analyzed);
       setJobs((prev) => prev.map((job) => (job.id === jobId ? analyzed : job)));
       setRankingJobs((prev) => prev.map((job) => (job.id === jobId ? analyzed : job)));
       await loadJobs();
     } catch (error) {
+      if (requestSequence !== analysisRequestSequence.current) return;
       setError(getApiErrorMessage(error, t("errors.analyze_job")));
     } finally {
-      setAnalyzingJob(false);
+      if (requestSequence === analysisRequestSequence.current) setAnalyzingJob(false);
     }
   }, [loadJobs, selectedJob]);
 

@@ -121,7 +121,48 @@ class JobTest < ActiveSupport::TestCase
 
       job.save!
     end
-    locked_user.verify
+    assert locked_user.verify
+  end
+
+  test "uses current master weights after validation cached older associations" do
+    job = build_job
+    pending_job = Job.find(job.id)
+    assert pending_job.valid?
+
+    Position.find(@position.id).update!(score_weight: 28)
+    Location.find(@location.id).update!(score_weight: 16)
+    TechStack.find(@rails.id).update!(score_weight: 30)
+    pending_job.update!(work_style: "full_remote")
+
+    assert_equal 119, pending_job.reload.score
+    assert_equal JobScoreCalculator.call(pending_job), pending_job.score
+  end
+
+  test "writes a recalculated score even when it matches the originally loaded score" do
+    job = build_job
+    pending_job = Job.find(job.id)
+    assert pending_job.valid?
+    original_score = pending_job.score
+
+    Position.find(@position.id).update!(score_weight: @position.score_weight + 15)
+    pending_job.update!(work_style: "onsite")
+
+    assert_equal original_score, pending_job.reload.score
+    assert_equal JobScoreCalculator.call(pending_job), pending_job.score
+  end
+
+  test "preserves assigned masters when refreshing weights for a new job" do
+    job = Job.new(user: @user, company_name: "新規", position: @position, location: @location,
+      status: "interested", work_style: "hybrid", employment_type: "full_time",
+      salary_min: 5_000_000, salary_max: 7_000_000)
+    job.tech_stacks = [ @typescript ]
+    assert job.valid?
+    TechStack.find(@typescript.id).update!(score_weight: 25)
+
+    job.save!
+
+    assert_equal [ @typescript.id ], job.reload.tech_stack_ids
+    assert_equal 54, job.score
   end
 
   private
