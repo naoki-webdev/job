@@ -1,5 +1,5 @@
 import { t } from "../i18n";
-import type { Job, ScoringPreference } from "../types/job";
+import type { Job } from "../types/job";
 import { buildScoreBreakdown } from "./scoreBreakdown";
 
 export type PriorityLevel = "high" | "review" | "hold";
@@ -52,8 +52,8 @@ export function calculateRate(numerator: number, denominator: number) {
   return clampPercent((numerator / denominator) * 100);
 }
 
-export function buildJobDecisionInsights(job: Job, preference: ScoringPreference | null): JobDecisionInsights {
-  const breakdown = buildScoreBreakdown(job, preference);
+export function buildJobDecisionInsights(job: Job): JobDecisionInsights {
+  const breakdown = buildScoreBreakdown(job);
   const strengths = breakdown
     .filter((item) => item.value > 0)
     .sort((left, right) => right.value - left.value)

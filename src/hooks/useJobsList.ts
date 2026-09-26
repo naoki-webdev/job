@@ -9,6 +9,7 @@ import {
   fetchJobs,
   getApiErrorMessage,
   updateJob,
+  waitForJobAnalysis,
 } from "../api/jobs";
 import { t } from "../i18n";
 import type {
@@ -31,6 +32,7 @@ export function useJobsList() {
   const formRequestSequence = useRef(0);
   const statusRequestSequence = useRef(0);
   const analysisRequestSequence = useRef(0);
+  const analysisAbortController = useRef<AbortController | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [rankingJobs, setRankingJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -144,6 +146,7 @@ export function useJobsList() {
       detailAbortController.current?.abort();
       statusRequestSequence.current += 1;
       analysisRequestSequence.current += 1;
+      analysisAbortController.current?.abort();
       deleteRequestSequence.current += 1;
       formRequestSequence.current += 1;
     };
@@ -154,15 +157,17 @@ export function useJobsList() {
     detailAbortController.current?.abort();
     detailAbortController.current = null;
     analysisRequestSequence.current += 1;
+    analysisAbortController.current?.abort();
+    analysisAbortController.current = null;
     setAnalyzingJob(false);
   }, []);
 
-  const cancelDeleteRequest = useCallback(() => {
+  const invalidateDeleteRequest = useCallback(() => {
     deleteRequestSequence.current += 1;
     setDeletingJob(false);
   }, []);
 
-  const cancelFormRequest = useCallback(() => {
+  const invalidateFormRequest = useCallback(() => {
     formRequestSequence.current += 1;
     setSubmittingForm(false);
     setFormOpen(false);
@@ -236,8 +241,8 @@ export function useJobsList() {
   }, []);
 
   const handleRowClick = useCallback(async (jobId: number) => {
-    cancelDeleteRequest();
-    cancelFormRequest();
+    invalidateDeleteRequest();
+    invalidateFormRequest();
     statusRequestSequence.current += 1;
     setStatusUpdating(false);
     cancelDetailRequest();
@@ -261,55 +266,55 @@ export function useJobsList() {
         detailAbortController.current = null;
       }
     }
-  }, [cancelDeleteRequest, cancelFormRequest, cancelDetailRequest]);
+  }, [invalidateDeleteRequest, invalidateFormRequest, cancelDetailRequest]);
 
   const openJobPreview = useCallback((job: Job) => {
-    cancelDeleteRequest();
-    cancelFormRequest();
+    invalidateDeleteRequest();
+    invalidateFormRequest();
     statusRequestSequence.current += 1;
     setStatusUpdating(false);
     cancelDetailRequest();
     setSelectedJob(job);
     setDrawerOpen(true);
-  }, [cancelDeleteRequest, cancelFormRequest, cancelDetailRequest]);
+  }, [invalidateDeleteRequest, invalidateFormRequest, cancelDetailRequest]);
 
   const handleCloseDrawer = useCallback(() => {
-    cancelDeleteRequest();
-    cancelFormRequest();
+    invalidateDeleteRequest();
+    invalidateFormRequest();
     statusRequestSequence.current += 1;
     setStatusUpdating(false);
     cancelDetailRequest();
     setDrawerOpen(false);
-  }, [cancelDeleteRequest, cancelFormRequest, cancelDetailRequest]);
+  }, [invalidateDeleteRequest, invalidateFormRequest, cancelDetailRequest]);
 
   const handleOpenCreateForm = useCallback((draft: Partial<JobFormPayload> | null = null) => {
-    cancelDeleteRequest();
-    cancelFormRequest();
+    invalidateDeleteRequest();
+    invalidateFormRequest();
     setFormMode("create");
     setFormError(null);
     setFormInitialDraft(draft);
     setFormOpen(true);
-  }, [cancelDeleteRequest, cancelFormRequest]);
+  }, [invalidateDeleteRequest, invalidateFormRequest]);
 
   const handleOpenEditForm = useCallback(() => {
     if (!selectedJob) return;
 
-    cancelDeleteRequest();
-    cancelFormRequest();
+    invalidateDeleteRequest();
+    invalidateFormRequest();
     cancelDetailRequest();
     setFormMode("edit");
     setFormError(null);
     setFormInitialDraft(null);
     setDrawerOpen(false);
     setFormOpen(true);
-  }, [cancelDeleteRequest, cancelDetailRequest, cancelFormRequest, selectedJob]);
+  }, [invalidateDeleteRequest, cancelDetailRequest, invalidateFormRequest, selectedJob]);
 
   const handleCloseForm = useCallback(() => {
-    cancelFormRequest();
+    invalidateFormRequest();
     setFormOpen(false);
     setFormError(null);
     setFormInitialDraft(null);
-  }, [cancelFormRequest]);
+  }, [invalidateFormRequest]);
 
   const handleStatusChange = useCallback(async (status: JobStatus) => {
     setError(null);
@@ -376,7 +381,7 @@ export function useJobsList() {
     const jobId = selectedJob.id;
     const requestSequence = ++deleteRequestSequence.current;
     statusRequestSequence.current += 1;
-    cancelFormRequest();
+    invalidateFormRequest();
     cancelDetailRequest();
     setDeletingJob(true);
     setError(null);
@@ -398,19 +403,40 @@ export function useJobsList() {
         setDeletingJob(false);
       }
     }
-  }, [cancelDetailRequest, cancelFormRequest, loadJobs, selectedJob]);
+  }, [cancelDetailRequest, invalidateFormRequest, loadJobs, selectedJob]);
 
   const handleAnalyzeJob = useCallback(async () => {
     if (!selectedJob) return;
 
     const jobId = selectedJob.id;
     const requestSequence = ++analysisRequestSequence.current;
+    analysisAbortController.current?.abort();
+    const abortController = new AbortController();
+    analysisAbortController.current = abortController;
     setAnalyzingJob(true);
     setError(null);
 
     try {
-      const analyzed = await analyzeJob(jobId);
+      let analyzed = await analyzeJob(jobId, { signal: abortController.signal });
       if (requestSequence !== analysisRequestSequence.current) return;
+
+      setSelectedJob(analyzed);
+      setJobs((prev) => prev.map((job) => (job.id === jobId ? analyzed : job)));
+      setRankingJobs((prev) => prev.map((job) => (job.id === jobId ? analyzed : job)));
+
+      if (analyzed.ai_analysis_status === "queued" || analyzed.ai_analysis_status === "running") {
+        analyzed = await waitForJobAnalysis(jobId, { signal: abortController.signal });
+      }
+      if (requestSequence !== analysisRequestSequence.current) return;
+
+      if (analyzed.ai_analysis_status === "queued" || analyzed.ai_analysis_status === "running") {
+        throw new Error(t("errors.analyze_job"));
+      }
+
+      if (analyzed.ai_analysis_status === "failed") {
+        setSelectedJob(analyzed);
+        throw new Error(t("errors.analyze_job"));
+      }
 
       setSelectedJob(analyzed);
       setJobs((prev) => prev.map((job) => (job.id === jobId ? analyzed : job)));
@@ -421,6 +447,7 @@ export function useJobsList() {
       setError(getApiErrorMessage(error, t("errors.analyze_job")));
     } finally {
       if (requestSequence === analysisRequestSequence.current) setAnalyzingJob(false);
+      if (requestSequence === analysisRequestSequence.current) analysisAbortController.current = null;
     }
   }, [loadJobs, selectedJob]);
 

@@ -1,14 +1,15 @@
 class JobSerializer
   MASTER_DATA_FIELDS = %i[id name score_weight active display_order].freeze
 
-  def self.collection(jobs, url_options: nil)
-    jobs.map { |job| new(job, url_options: url_options).as_json }
+  def self.collection(jobs, url_options: nil, scoring_preference: nil)
+    jobs.map { |job| new(job, url_options: url_options, scoring_preference: scoring_preference).as_json }
   end
 
-  def initialize(job, url_options: nil, include_ai_analysis: false)
+  def initialize(job, url_options: nil, include_ai_analysis: false, scoring_preference: nil)
     @job = job
     @url_options = url_options
     @include_ai_analysis = include_ai_analysis
+    @scoring_preference = scoring_preference
   end
 
   def as_json(*)
@@ -31,6 +32,8 @@ class JobSerializer
       "company_logo_url" => company_logo_url,
       "company_logo_filename" => company_logo_filename,
       "score" => @job.score,
+      "score_breakdown" => JobScoreCalculator.new(@job, preference: @scoring_preference).breakdown,
+      "ai_analysis_status" => @job.ai_analysis_status,
       "created_at" => @job.created_at,
       "updated_at" => @job.updated_at,
       "tech_stacks" => @job.tech_stacks.as_json(only: MASTER_DATA_FIELDS),
@@ -65,7 +68,7 @@ class JobSerializer
   end
 
   def serialize_ai_evaluation
-    evaluation = @job.latest_ai_evaluation
+    evaluation = current_ai_evaluation || @job.latest_ai_evaluation
     return unless evaluation
 
     evaluation.result_json.merge(
@@ -77,6 +80,16 @@ class JobSerializer
       "input_digest" => evaluation.input_digest,
       "stale" => evaluation.stale?,
       "evaluated_at" => evaluation.evaluated_at
+    )
+  end
+
+  def current_ai_evaluation
+    return if @job.ai_analysis_input_digest.blank?
+
+    @job.job_ai_evaluations.find_by(
+      input_digest: @job.ai_analysis_input_digest,
+      model: JobAnalysis::AiAnalyzer::MODEL,
+      prompt_version: JobAnalysis::Analyzer::PROMPT_VERSION
     )
   end
 end

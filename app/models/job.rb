@@ -30,6 +30,14 @@ class Job < ApplicationRecord
     contract: "contract"
   }, validate: true
 
+  enum :ai_analysis_status, {
+    idle: "idle",
+    queued: "queued",
+    running: "running",
+    completed: "completed",
+    failed: "failed"
+  }, prefix: true, validate: true
+
   validates :company_name, presence: true
   validates :position, presence: true
   validates :status, presence: true
@@ -47,6 +55,7 @@ class Job < ApplicationRecord
   validate :master_records_belong_to_user
 
   before_save :lock_user_for_score_recalculation
+  before_save :reset_ai_analysis_if_source_changed
   before_save :set_score
 
   delegate :name, to: :position, prefix: true, allow_nil: true
@@ -92,6 +101,14 @@ class Job < ApplicationRecord
   def set_score
     self.score = self.class.uncached { JobScoreCalculator.call(self, fresh_master_weights: true) }
     score_will_change!
+  end
+
+  def reset_ai_analysis_if_source_changed
+    return unless will_save_change_to_source_text? || will_save_change_to_source_url?
+
+    self.ai_analysis_status = "idle"
+    self.ai_analysis_input_digest = nil
+    self.ai_analysis_error = nil
   end
 
   def lock_user_for_score_recalculation

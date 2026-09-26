@@ -112,7 +112,6 @@ export default function JobsPage() {
         <Stack spacing={1.5}>
           <AiDiagnosisOverview
             jobs={rankingJobs}
-            scoringPreference={scoringPreference}
             onSelectJob={(jobId) => {
               void handleRowClick(jobId);
             }}
@@ -162,7 +161,6 @@ export default function JobsPage() {
             open={drawerOpen}
             job={selectedJob}
             recommended={selectedJob ? recommendedJobIds.includes(selectedJob.id) : false}
-            scoringPreference={scoringPreference}
             readOnly={readOnly}
             onClose={handleCloseDrawer}
             onStatusChange={handleStatusChange}

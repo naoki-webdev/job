@@ -8,10 +8,18 @@ module JobAnalysis
       @user = user
     end
 
+    def self.input_digest_for(job:, user:)
+      preferences = PreferenceSnapshot.new(user).call
+      InputDigest.call(
+        source_text: job.source_text,
+        source_url: job.source_url,
+        preferences: preferences
+      )
+    end
+
     def call
+      validate_input!
       source_text = @job.source_text.to_s.strip
-      raise ArgumentError, "source_text is required" if source_text.blank?
-      raise ArgumentError, "source_text is too long" if source_text.length > MAX_SOURCE_TEXT_LENGTH
 
       preferences = PreferenceSnapshot.new(@user).call
       raw = AiAnalyzer.new(
@@ -31,6 +39,12 @@ module JobAnalysis
         ),
         "evaluated_at" => Time.current
       )
+    end
+
+    def validate_input!
+      source_text = @job.source_text.to_s.strip
+      raise ArgumentError, "source_text is required" if source_text.blank?
+      raise ArgumentError, "source_text is too long" if source_text.length > MAX_SOURCE_TEXT_LENGTH
     end
   end
 end

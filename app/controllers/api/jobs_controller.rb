@@ -12,7 +12,11 @@ module Api
       jobs = query.results.includes(:position, :location, :tech_stacks).with_attached_company_logo
 
       render json: {
-        jobs: JobSerializer.collection(jobs, url_options: url_options),
+        jobs: JobSerializer.collection(
+          jobs,
+          url_options: url_options,
+          scoring_preference: ScoringPreference.for_calculation(user: current_user)
+        ),
         meta: {
           page: query.page,
           per_page: query.per_page,
@@ -30,7 +34,7 @@ module Api
     end
 
     def show
-      render json: JobSerializer.new(@job, url_options: url_options, include_ai_analysis: true).as_json
+      render json: serialize_job(include_ai_analysis: true)
     end
 
     def analyze
@@ -42,20 +46,34 @@ module Api
         )
       end
 
-      result = JobAnalysis::Analyzer.new(job: @job, user: current_user).call
-      evaluation = @job.job_ai_evaluations.create!(
-        user: current_user,
-        verdict: result.fetch("verdict"),
-        summary: result.fetch("summary"),
-        result_json: result.except("model", "prompt_version", "input_digest", "evaluated_at"),
-        model: result.fetch("model"),
-        prompt_version: result.fetch("prompt_version"),
-        input_digest: result.fetch("input_digest"),
-        evaluated_at: result.fetch("evaluated_at")
-      )
-      record_activity!("job.ai_analyze", @job, metadata: { evaluation_id: evaluation.id, verdict: evaluation.verdict })
+      analyzer = JobAnalysis::Analyzer.new(job: @job, user: current_user)
+      analyzer.validate_input!
+      digest = JobAnalysis::Analyzer.input_digest_for(job: @job, user: current_user)
+      cached = JobAnalysis::EvaluationRunner.cached(job: @job, user: current_user)
 
-      render json: JobSerializer.new(@job.reload, url_options: url_options, include_ai_analysis: true).as_json
+      if cached
+        @job.update_columns(
+          ai_analysis_status: "completed",
+          ai_analysis_input_digest: digest,
+          ai_analysis_error: nil
+        )
+        return render_analysis_response(status: :ok)
+      end
+
+      should_enqueue = false
+      @job.with_lock do
+        unless @job.ai_analysis_status.in?(%w[queued running]) && @job.ai_analysis_input_digest == digest
+          @job.update_columns(
+            ai_analysis_status: "queued",
+            ai_analysis_input_digest: digest,
+            ai_analysis_error: nil
+          )
+          should_enqueue = true
+        end
+      end
+      AnalyzeJob.perform_later(@job.id, current_user.id) if should_enqueue
+
+      render_analysis_response(status: :accepted)
     rescue ArgumentError => error
       message = if error.message == "source_text is required"
         "求人本文を保存してからAI判定を実行してください。"
@@ -80,6 +98,11 @@ module Api
       )
     end
 
+    def render_analysis_response(status:)
+      render json: serialize_job(include_ai_analysis: true), status: status
+    end
+    private :render_analysis_response
+
     def create
       job = current_user.jobs.new(base_job_params)
       assign_master_relations(job)
@@ -89,7 +112,7 @@ module Api
         job.save!
         record_activity!("job.create", job)
       end
-      render json: JobSerializer.new(job, url_options: url_options).as_json, status: :created
+      render json: serialize_job(job), status: :created
     rescue ActiveRecord::RecordInvalid => error
       errors = job.errors.full_messages
       errors = [ error.message ] if errors.empty?
@@ -114,7 +137,7 @@ module Api
         )
       end
 
-      render json: JobSerializer.new(@job, url_options: url_options, include_ai_analysis: true).as_json
+      render json: serialize_job(@job, include_ai_analysis: true)
     rescue ActiveRecord::RecordInvalid => error
       errors = @job.errors.full_messages
       errors = [ error.message ] if errors.empty?
@@ -202,11 +225,33 @@ module Api
     def valid_logo_file?(file)
       return false unless file.respond_to?(:tempfile) && file.respond_to?(:original_filename)
 
+      return false if file.tempfile.size > 5.megabytes
+
       file.tempfile.rewind
       detected_type = Marcel::MimeType.for(file.tempfile)
-      Job::ALLOWED_LOGO_CONTENT_TYPES.include?(detected_type)
+      return false unless Job::ALLOWED_LOGO_CONTENT_TYPES.include?(detected_type)
+      return true unless detected_type == "image/svg+xml"
+
+      safe_svg_file?(file.tempfile)
     ensure
       file.tempfile.rewind if file.respond_to?(:tempfile) && file.tempfile.respond_to?(:rewind)
+    end
+
+    def safe_svg_file?(file)
+      document = Nokogiri::XML(file.read) { |config| config.strict.nonet }
+      return false if document.errors.any?
+      return false if document.xpath("//*[local-name()='script']").any?
+
+      document.xpath("//*").none? do |node|
+        node.attribute_nodes.any? do |attribute|
+          name = attribute.name.downcase
+          value = attribute.value.to_s.strip.downcase
+          name.start_with?("on") || name == "style" && value.include?("url(") ||
+            %w[href xlink:href].include?(name) && value.match?(%r{\A(?://|https?:|file:|javascript:|data:)})
+        end
+      end
+    rescue Nokogiri::XML::SyntaxError
+      false
     end
 
     def tech_stack_ids
@@ -263,6 +308,17 @@ module Api
 
     def url_options
       { host: request.host_with_port, protocol: request.protocol }
+    end
+
+    def serialize_job(job = @job, include_ai_analysis: false)
+      job = job.reload if job.persisted?
+
+      JobSerializer.new(
+        job,
+        url_options: url_options,
+        include_ai_analysis: include_ai_analysis,
+        scoring_preference: ScoringPreference.for_calculation(user: current_user)
+      ).as_json
     end
   end
 end

@@ -5,19 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import { buildJob } from "../test/fixtures";
 import AiDiagnosisOverview from "./AiDiagnosisOverview";
 
-const scoringPreference = {
-  id: 1,
-  full_remote_weight: 30,
-  hybrid_weight: 15,
-  onsite_weight: 0,
-  high_salary_max_threshold: 8_000_000,
-  high_salary_bonus: 10,
-  low_salary_min_threshold: 4_000_000,
-  low_salary_penalty: -10,
-  created_at: "2026-04-05T00:00:00.000Z",
-  updated_at: "2026-04-05T00:00:00.000Z",
-};
-
 describe("AiDiagnosisOverview", () => {
   it("renders a compact overview and ranking without the three-step explanation", () => {
     render(
@@ -59,7 +46,6 @@ describe("AiDiagnosisOverview", () => {
     render(
       <AiDiagnosisOverview
         jobs={[buildJob({ id: 9, company_name: "理由付き求人" })]}
-        scoringPreference={scoringPreference}
         onSelectJob={vi.fn()}
       />,
     );

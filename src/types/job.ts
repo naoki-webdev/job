@@ -8,12 +8,20 @@ export type JobStatus =
 export type WorkStyle = "full_remote" | "hybrid" | "onsite";
 
 export type EmploymentType = "full_time" | "contract";
+export type AiAnalysisStatus = "idle" | "queued" | "running" | "completed" | "failed";
 export type MasterDataItem = {
   id: number;
   name: string;
   score_weight: number;
   active: boolean;
   display_order: number;
+};
+
+export type JobScoreBreakdownItem = {
+  category: "work_style" | "master" | "salary";
+  key: string;
+  label: string | null;
+  value: number;
 };
 
 export type JobSortKey =
@@ -50,6 +58,8 @@ export type Job = {
   company_logo_url: string | null;
   company_logo_filename: string | null;
   score: number;
+  score_breakdown: JobScoreBreakdownItem[];
+  ai_analysis_status: AiAnalysisStatus;
   created_at: string;
   updated_at: string;
   ai_evaluation?: JobAiEvaluation | null;

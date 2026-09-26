@@ -8,18 +8,17 @@ import Typography from "@mui/material/Typography";
 import InfoTooltip from "./InfoTooltip";
 
 import { t } from "../i18n";
-import type { Job, ScoringPreference } from "../types/job";
+import type { Job } from "../types/job";
 import { getTopScoredJobs } from "../utils/jobDashboardInsights";
 import { buildScoreBreakdown } from "../utils/scoreBreakdown";
 import ScoreChip from "./ScoreChip";
 
 type AiDiagnosisOverviewProps = {
   jobs: Job[];
-  scoringPreference?: ScoringPreference | null;
   onSelectJob: (jobId: number) => void;
 };
 
-function AiDiagnosisOverview({ jobs, scoringPreference = null, onSelectJob }: AiDiagnosisOverviewProps) {
+function AiDiagnosisOverview({ jobs, onSelectJob }: AiDiagnosisOverviewProps) {
   const topJobs = useMemo(() => getTopScoredJobs(jobs, 3), [jobs]);
 
   return (
@@ -65,7 +64,7 @@ function AiDiagnosisOverview({ jobs, scoringPreference = null, onSelectJob }: Ai
               }}
             >
               {topJobs.map((job, index) => {
-                const breakdown = buildScoreBreakdown(job, scoringPreference);
+                const breakdown = buildScoreBreakdown(job);
                 const strongestReason = breakdown
                   .filter((item) => item.value > 0)
                   .sort((left, right) => right.value - left.value)[0];

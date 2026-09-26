@@ -5,24 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import JobDetailDrawer from "./JobDetailDrawer";
 import { buildJob } from "../test/fixtures";
 
-const scoringPreference = {
-  id: 1,
-  full_remote_weight: 30,
-  hybrid_weight: 15,
-  onsite_weight: 0,
-  high_salary_max_threshold: 8_000_000,
-  high_salary_bonus: 10,
-  low_salary_min_threshold: 4_000_000,
-  low_salary_penalty: -10,
-  created_at: "2026-04-05T00:00:00.000Z",
-  updated_at: "2026-04-05T00:00:00.000Z",
-};
-
 const defaultProps = {
   open: true,
   job: buildJob(),
   recommended: false,
-  scoringPreference,
   onClose: vi.fn(),
   onStatusChange: vi.fn(),
   onEdit: vi.fn(),

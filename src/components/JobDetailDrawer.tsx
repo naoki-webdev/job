@@ -15,7 +15,7 @@ import Typography from "@mui/material/Typography";
 
 import { isJobStatus, JOB_STATUS_OPTIONS } from "../constants/jobOptions";
 import { t } from "../i18n";
-import type { Job, JobStatus, ScoringPreference } from "../types/job";
+import type { Job, JobStatus } from "../types/job";
 import { formatDateTime, formatSalaryRange } from "../utils/jobFormat";
 import { getPriorityView } from "../utils/jobDashboardInsights";
 import { buildScoreBreakdown } from "../utils/scoreBreakdown";
@@ -27,7 +27,6 @@ type JobDetailDrawerProps = {
   open: boolean;
   job: Job | null;
   recommended: boolean;
-  scoringPreference: ScoringPreference | null;
   readOnly?: boolean;
   onClose: () => void;
   onStatusChange: (status: JobStatus) => void;
@@ -68,7 +67,6 @@ function JobDetailDrawer({
   open,
   job,
   recommended,
-  scoringPreference,
   readOnly = false,
   onClose,
   onStatusChange,
@@ -79,7 +77,7 @@ function JobDetailDrawer({
   analyzing = false,
   onAnalyze = () => {},
 }: JobDetailDrawerProps) {
-  const scoreBreakdown = job ? buildScoreBreakdown(job, scoringPreference) : [];
+  const scoreBreakdown = job ? buildScoreBreakdown(job) : [];
   const priority = job ? getPriorityView(job.score, job.status) : null;
 
   return (
@@ -191,7 +189,11 @@ function JobDetailDrawer({
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                   {t("jobs.detail.ai_hint")}
                 </Typography>
-                {job.ai_evaluation ? (
+                {job.ai_analysis_status === "queued" || job.ai_analysis_status === "running" ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                    {t("jobs.detail.ai_running")}
+                  </Typography>
+                ) : job.ai_evaluation ? (
                   <Stack spacing={1.25} sx={{ mt: 1.5 }}>
                     {job.ai_evaluation.stale && (
                       <Typography variant="body2" color="warning.main">

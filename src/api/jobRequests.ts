@@ -64,11 +64,36 @@ export async function updateJob(id: number, job: JobUpdatePayload): Promise<Job>
   return requestJson<Job>(`${API_BASE_URL}/api/jobs/${id}`, buildJobRequestInit("PATCH", job));
 }
 
-export async function analyzeJob(id: number): Promise<Job> {
+export async function analyzeJob(id: number, init?: RequestInit): Promise<Job> {
   return requestJson<Job>(`${API_BASE_URL}/api/jobs/${id}/analyze`, {
+    ...init,
     method: "POST",
     body: JSON.stringify({}),
   });
+}
+
+export async function waitForJobAnalysis(id: number, init?: RequestInit): Promise<Job> {
+  const maxAttempts = 120;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await new Promise<void>((resolve, reject) => {
+      if (init?.signal?.aborted) {
+        reject(new DOMException("The operation was aborted.", "AbortError"));
+        return;
+      }
+
+      const timeout = setTimeout(resolve, 500);
+      init?.signal?.addEventListener("abort", () => {
+        clearTimeout(timeout);
+        reject(new DOMException("The operation was aborted.", "AbortError"));
+      }, { once: true });
+    });
+
+    const job = await fetchJob(id, init);
+    if (job.ai_analysis_status !== "queued" && job.ai_analysis_status !== "running") return job;
+  }
+
+  return fetchJob(id, init);
 }
 
 export async function deleteJob(id: number): Promise<void> {

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_09_09_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_09_27_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -89,6 +89,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_09_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["job_id", "evaluated_at"], name: "index_job_ai_evaluations_on_job_id_and_evaluated_at"
+    t.index ["job_id", "user_id", "model", "prompt_version", "input_digest"], name: "index_job_ai_evaluations_on_current_input"
     t.index ["job_id"], name: "index_job_ai_evaluations_on_job_id"
     t.index ["input_digest"], name: "index_job_ai_evaluations_on_input_digest"
     t.index ["user_id"], name: "index_job_ai_evaluations_on_user_id"
@@ -110,6 +111,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_09_120000) do
     t.bigint "user_id", null: false
     t.string "source_url"
     t.text "source_text", default: "", null: false
+    t.string "ai_analysis_status", default: "idle", null: false
+    t.string "ai_analysis_input_digest"
+    t.text "ai_analysis_error"
     t.index ["created_at"], name: "index_jobs_on_created_at"
     t.index ["location_id"], name: "index_jobs_on_location_id"
     t.index ["position_id"], name: "index_jobs_on_position_id"

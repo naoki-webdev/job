@@ -67,6 +67,16 @@ class JobScoreCalculatorTest < ActiveSupport::TestCase
     assert_equal 99, JobScoreCalculator.call(job, preference: preference)
   end
 
+  test "returns the same components that make up the total score" do
+    job = build_job(work_style: "full_remote", salary_min: 3_500_000, salary_max: 8_500_000)
+
+    breakdown = JobScoreCalculator.new(job).breakdown
+
+    assert_equal 79, breakdown.sum { |item| item.fetch("value") }
+    assert_equal [ "work_style", "master", "master", "master", "master", "salary", "salary" ], breakdown.map { |item| item.fetch("category") }
+    assert_equal [ "full_remote", "position", "location", "tech_stack", "tech_stack", "high_salary", "low_salary" ], breakdown.map { |item| item.fetch("key") }
+  end
+
   private
 
   def build_job(overrides = {})

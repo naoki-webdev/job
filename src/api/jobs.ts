@@ -15,6 +15,7 @@ export {
   analyzeJob,
   fetchJob,
   fetchJobs,
+  waitForJobAnalysis,
   updateJob,
 } from "./jobRequests";
 export { createJobDraft } from "./jobDrafts";

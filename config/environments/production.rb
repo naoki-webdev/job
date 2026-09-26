@@ -54,6 +54,7 @@ Rails.application.configure do
 
   # Score recalculation is synchronous; Solid Cache keeps rate limits durable across restarts.
   config.cache_store = :solid_cache_store
+  config.active_job.queue_adapter = :solid_queue
 
   # Ignore bad email addresses and do not raise email delivery errors.
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.

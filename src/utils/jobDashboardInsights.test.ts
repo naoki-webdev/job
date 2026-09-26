@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { buildJob } from "../test/fixtures";
-import type { ScoringPreference } from "../types/job";
 import {
   buildJobDecisionInsights,
   calculateRate,
@@ -9,18 +8,6 @@ import {
   getTopScoredJobs,
 } from "./jobDashboardInsights";
 
-const scoringPreference: ScoringPreference = {
-  id: 1,
-  full_remote_weight: 30,
-  hybrid_weight: 15,
-  onsite_weight: 0,
-  high_salary_max_threshold: 8_000_000,
-  high_salary_bonus: 10,
-  low_salary_min_threshold: 4_000_000,
-  low_salary_penalty: -10,
-  created_at: "2026-04-05T00:00:00.000Z",
-  updated_at: "2026-04-05T00:00:00.000Z",
-};
 
 describe("jobDashboardInsights", () => {
   it("sorts jobs by score for the ranking panel", () => {
@@ -61,10 +48,14 @@ describe("jobDashboardInsights", () => {
   });
 
   it("splits positive and check items from score breakdown", () => {
-    const insights = buildJobDecisionInsights(
-      buildJob({ salary_min: 3_500_000, salary_max: 5_000_000 }),
-      scoringPreference,
-    );
+    const insights = buildJobDecisionInsights(buildJob({
+      salary_min: 3_500_000,
+      salary_max: 5_000_000,
+      score_breakdown: [
+        { category: "work_style", key: "full_remote", label: null, value: 30 },
+        { category: "salary", key: "low_salary", label: null, value: -10 },
+      ],
+    }));
 
     expect(insights.strengths).toContain("フルリモート");
     expect(insights.checks).toContain("低年収条件");

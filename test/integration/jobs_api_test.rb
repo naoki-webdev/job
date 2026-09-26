@@ -2,6 +2,8 @@ require "test_helper"
 require "tempfile"
 
 class JobsApiTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   setup do
     ActiveStorage::Attachment.delete_all
     ActiveStorage::Blob.delete_all
@@ -135,6 +137,7 @@ class JobsApiTest < ActionDispatch::IntegrationTest
     assert_equal 2, body["tech_stacks"].length
     assert_equal @backend.id, body["position_master"]["id"]
     assert_equal @tokyo.id, body["location_master"]["id"]
+    assert_equal 79, body["score_breakdown"].sum { |item| item["value"] }
     assert_nil body["company_logo_url"]
     assert_nil body["company_logo_filename"]
   end
@@ -233,22 +236,31 @@ class JobsApiTest < ActionDispatch::IntegrationTest
       "preference_snapshot" => {},
       "model" => "test-model",
       "prompt_version" => "test-prompt-v1",
-      "input_digest" => "test-digest",
+      "input_digest" => JobAnalysis::Analyzer.input_digest_for(job: @job1, user: @user),
       "evaluated_at" => Time.current
     }
     analyzer = Minitest::Mock.new
+    analyzer.expect(:validate_input!, true)
     analyzer.expect(:call, analysis)
 
-    JobAnalysis::Analyzer.stub(:new, ->(*_args, **_kwargs) { analyzer }) do
+    assert_enqueued_with(job: AnalyzeJob, args: [ @job1.id, @user.id ]) do
       post "/api/jobs/#{@job1.id}/analyze", headers: @headers, as: :json
     end
 
-    assert_response :success
-    assert analyzer.verify
+    assert_response :accepted
+    assert_equal "queued", JSON.parse(response.body)["ai_analysis_status"]
+
+    JobAnalysis::Analyzer.stub(:new, ->(*_args, **_kwargs) { analyzer }) do
+      perform_enqueued_jobs
+    end
+
     evaluation = JobAiEvaluation.order(:id).last
     assert_equal "conditional", evaluation.verdict
     assert_equal "test-prompt-v1", evaluation.prompt_version
+    assert analyzer.verify
+    get "/api/jobs/#{@job1.id}", headers: @headers
     assert_equal evaluation.id, JSON.parse(response.body).dig("ai_evaluation", "id")
+    assert_equal "completed", JSON.parse(response.body)["ai_analysis_status"]
     assert_equal "job.ai_analyze", ActivityLog.last.action
   end
 
@@ -403,6 +415,36 @@ class JobsApiTest < ActionDispatch::IntegrationTest
           params: {
             job: {
               company_name: "不正なロゴ",
+              position_id: @backend.id,
+              status: "applied",
+              work_style: "hybrid",
+              employment_type: "full_time",
+              salary_min: 6_000_000,
+              salary_max: 8_000_000,
+              tech_stack_ids: [ @react.id ],
+              location_id: @tokyo.id,
+              notes: "",
+              company_logo: upload
+            }
+          },
+          headers: @headers
+      end
+    end
+
+    assert_response :unprocessable_entity
+  end
+
+  test "rejects an SVG that contains executable content" do
+    Tempfile.create([ "unsafe-logo", ".svg" ]) do |file|
+      file.write('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')
+      file.rewind
+      upload = Rack::Test::UploadedFile.new(file.path, "image/svg+xml")
+
+      assert_no_difference("Job.count") do
+        post "/api/jobs",
+          params: {
+            job: {
+              company_name: "危険なロゴ",
               position_id: @backend.id,
               status: "applied",
               work_style: "hybrid",

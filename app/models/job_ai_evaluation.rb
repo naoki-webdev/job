@@ -18,7 +18,9 @@ class JobAiEvaluation < ApplicationRecord
     current_digest = JobAnalysis::InputDigest.call(
       source_text: job.source_text,
       source_url: job.source_url,
-      preferences: JobAnalysis::PreferenceSnapshot.new(user).call
+      preferences: JobAnalysis::PreferenceSnapshot.new(user).call,
+      prompt_version: JobAnalysis::Analyzer::PROMPT_VERSION,
+      model: JobAnalysis::AiAnalyzer::MODEL
     )
     current_digest != input_digest
   rescue StandardError
