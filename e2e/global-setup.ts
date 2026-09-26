@@ -18,7 +18,7 @@ async function waitForServer(url: string, attempts = 60) {
       const status = await request(url);
       if (status >= 200 && status < 400) return;
     } catch {
-      // Wait for the containerized Rails server to boot.
+      // コンテナ上のRailsサーバーが起動するまで待ちます。
     }
 
     await new Promise((resolve) => setTimeout(resolve, 1_000));
@@ -28,8 +28,8 @@ async function waitForServer(url: string, attempts = 60) {
 }
 
 export default async function globalSetup() {
-  // Set PLAYWRIGHT_SKIP_DOCKER=1 when the server / seed are managed outside of Playwright
-  // (e.g. running tests inside a container that does not have the docker CLI available).
+  // サーバーやseedをPlaywrightの外部で管理する場合は、PLAYWRIGHT_SKIP_DOCKER=1を設定します。
+  // たとえば、Docker CLIのないコンテナ内でテストを実行する場合に使います。
   if (process.env.PLAYWRIGHT_SKIP_DOCKER !== "1") {
     execSync("docker compose up -d db e2e_web", { stdio: "inherit" });
   }

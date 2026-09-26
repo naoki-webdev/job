@@ -27,6 +27,8 @@ export function useJobsList() {
   const jobsAbortController = useRef<AbortController | null>(null);
   const detailRequestSequence = useRef(0);
   const detailAbortController = useRef<AbortController | null>(null);
+  const deleteRequestSequence = useRef(0);
+  const formRequestSequence = useRef(0);
   const statusRequestSequence = useRef(0);
   const analysisRequestSequence = useRef(0);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -57,6 +59,8 @@ export function useJobsList() {
     active_pipeline: 0,
     high_score: 0,
   });
+  const selectedJobRef = useRef<Job | null>(null);
+  selectedJobRef.current = selectedJob;
 
   const listParams = useMemo<JobsListParams>(
     () => ({
@@ -83,8 +87,14 @@ export function useJobsList() {
     }),
     [keyword, statuses, workStyles],
   );
+  const listParamsRef = useRef(listParams);
+  const rankingParamsRef = useRef(rankingParams);
+  listParamsRef.current = listParams;
+  rankingParamsRef.current = rankingParams;
 
   const loadJobs = useCallback(async () => {
+    const currentListParams = listParamsRef.current;
+    const currentRankingParams = rankingParamsRef.current;
     const requestSequence = jobsRequestSequence.current + 1;
     jobsRequestSequence.current = requestSequence;
     jobsAbortController.current?.abort();
@@ -96,14 +106,16 @@ export function useJobsList() {
 
     try {
       const [response, rankingResponse] = await Promise.all([
-        fetchJobs(listParams, { signal: abortController.signal }),
-        fetchJobs(rankingParams, { signal: abortController.signal }),
+        fetchJobs(currentListParams, { signal: abortController.signal }),
+        fetchJobs(currentRankingParams, { signal: abortController.signal }),
       ]);
 
       if (requestSequence !== jobsRequestSequence.current || abortController.signal.aborted) return;
 
-      const lastPage = Math.max(1, Math.ceil(response.meta.total_count / perPage));
-      if (page > lastPage) {
+      const currentPage = currentListParams.page ?? 1;
+      const currentPerPage = currentListParams.per_page ?? 20;
+      const lastPage = Math.max(1, Math.ceil(response.meta.total_count / currentPerPage));
+      if (currentPage > lastPage) {
         setPage(lastPage);
         return;
       }
@@ -130,7 +142,10 @@ export function useJobsList() {
       jobsAbortController.current?.abort();
       detailRequestSequence.current += 1;
       detailAbortController.current?.abort();
+      statusRequestSequence.current += 1;
       analysisRequestSequence.current += 1;
+      deleteRequestSequence.current += 1;
+      formRequestSequence.current += 1;
     };
   }, []);
 
@@ -142,8 +157,23 @@ export function useJobsList() {
     setAnalyzingJob(false);
   }, []);
 
+  const cancelDeleteRequest = useCallback(() => {
+    deleteRequestSequence.current += 1;
+    setDeletingJob(false);
+  }, []);
+
+  const cancelFormRequest = useCallback(() => {
+    formRequestSequence.current += 1;
+    setSubmittingForm(false);
+    setFormOpen(false);
+    setFormError(null);
+    setFormInitialDraft(null);
+  }, []);
+
   const refreshSelectedJob = useCallback(async () => {
     if (!selectedJob) return;
+    const selectedJobId = selectedJob.id;
+    if (selectedJobRef.current?.id !== selectedJobId) return;
 
     cancelDetailRequest();
     const requestSequence = detailRequestSequence.current;
@@ -151,15 +181,14 @@ export function useJobsList() {
     detailAbortController.current = abortController;
 
     try {
-      const selectedJobId = selectedJob.id;
       const refreshed = await fetchJob(selectedJobId, { signal: abortController.signal });
-      if (requestSequence !== detailRequestSequence.current || abortController.signal.aborted) return;
+      if (requestSequence !== detailRequestSequence.current || abortController.signal.aborted || selectedJobRef.current?.id !== selectedJobId) return;
 
       setSelectedJob(refreshed);
       setJobs((prev) => prev.map((job) => (job.id === refreshed.id ? refreshed : job)));
       setRankingJobs((prev) => prev.map((job) => (job.id === refreshed.id ? refreshed : job)));
     } catch (refreshError) {
-      if (requestSequence !== detailRequestSequence.current || isAbortError(refreshError)) return;
+      if (requestSequence !== detailRequestSequence.current || isAbortError(refreshError) || selectedJobRef.current?.id !== selectedJob.id) return;
 
       setError(t("errors.fetch_job_detail"));
     } finally {
@@ -207,6 +236,8 @@ export function useJobsList() {
   }, []);
 
   const handleRowClick = useCallback(async (jobId: number) => {
+    cancelDeleteRequest();
+    cancelFormRequest();
     statusRequestSequence.current += 1;
     setStatusUpdating(false);
     cancelDetailRequest();
@@ -230,46 +261,55 @@ export function useJobsList() {
         detailAbortController.current = null;
       }
     }
-  }, [cancelDetailRequest]);
+  }, [cancelDeleteRequest, cancelFormRequest, cancelDetailRequest]);
 
   const openJobPreview = useCallback((job: Job) => {
+    cancelDeleteRequest();
+    cancelFormRequest();
     statusRequestSequence.current += 1;
     setStatusUpdating(false);
     cancelDetailRequest();
     setSelectedJob(job);
     setDrawerOpen(true);
-  }, [cancelDetailRequest]);
+  }, [cancelDeleteRequest, cancelFormRequest, cancelDetailRequest]);
 
   const handleCloseDrawer = useCallback(() => {
+    cancelDeleteRequest();
+    cancelFormRequest();
     statusRequestSequence.current += 1;
     setStatusUpdating(false);
     cancelDetailRequest();
     setDrawerOpen(false);
-  }, [cancelDetailRequest]);
+  }, [cancelDeleteRequest, cancelFormRequest, cancelDetailRequest]);
 
   const handleOpenCreateForm = useCallback((draft: Partial<JobFormPayload> | null = null) => {
+    cancelDeleteRequest();
+    cancelFormRequest();
     setFormMode("create");
     setFormError(null);
     setFormInitialDraft(draft);
     setFormOpen(true);
-  }, []);
+  }, [cancelDeleteRequest, cancelFormRequest]);
 
   const handleOpenEditForm = useCallback(() => {
     if (!selectedJob) return;
 
+    cancelDeleteRequest();
+    cancelFormRequest();
     cancelDetailRequest();
     setFormMode("edit");
     setFormError(null);
     setFormInitialDraft(null);
     setDrawerOpen(false);
     setFormOpen(true);
-  }, [cancelDetailRequest, selectedJob]);
+  }, [cancelDeleteRequest, cancelDetailRequest, cancelFormRequest, selectedJob]);
 
   const handleCloseForm = useCallback(() => {
+    cancelFormRequest();
     setFormOpen(false);
     setFormError(null);
     setFormInitialDraft(null);
-  }, []);
+  }, [cancelFormRequest]);
 
   const handleStatusChange = useCallback(async (status: JobStatus) => {
     setError(null);
@@ -299,6 +339,11 @@ export function useJobsList() {
   }, [loadJobs, selectedJob]);
 
   const handleSubmitForm = useCallback(async (payload: JobFormPayload) => {
+    cancelDetailRequest();
+    statusRequestSequence.current += 1;
+    setStatusUpdating(false);
+    const requestSequence = ++formRequestSequence.current;
+    const editingJobId = selectedJob?.id;
     setSubmittingForm(true);
     setError(null);
     setFormError(null);
@@ -306,40 +351,54 @@ export function useJobsList() {
     try {
       if (formMode === "create") {
         await createJob(payload);
-      } else if (selectedJob) {
-        const updated = await updateJob(selectedJob.id, payload);
-        setSelectedJob(updated);
-        setDrawerOpen(true);
+      } else if (editingJobId) {
+        const updated = await updateJob(editingJobId, payload);
+        if (requestSequence === formRequestSequence.current) {
+          setSelectedJob(updated);
+          setDrawerOpen(true);
+        }
       }
 
-      setFormOpen(false);
+      if (requestSequence === formRequestSequence.current) setFormOpen(false);
       await loadJobs();
     } catch (error) {
-      setFormError(getApiErrorMessage(error, t(formMode === "create" ? "errors.create_job" : "errors.update_job")));
+      if (requestSequence === formRequestSequence.current) {
+        setFormError(getApiErrorMessage(error, t(formMode === "create" ? "errors.create_job" : "errors.update_job")));
+      }
     } finally {
-      setSubmittingForm(false);
+      if (requestSequence === formRequestSequence.current) setSubmittingForm(false);
     }
-  }, [formMode, loadJobs, selectedJob]);
+  }, [cancelDetailRequest, formMode, loadJobs, selectedJob]);
 
   const handleDeleteJob = useCallback(async () => {
     if (!selectedJob || !window.confirm(t("jobs.detail.delete_confirm"))) return;
 
+    const jobId = selectedJob.id;
+    const requestSequence = ++deleteRequestSequence.current;
+    statusRequestSequence.current += 1;
+    cancelFormRequest();
     cancelDetailRequest();
     setDeletingJob(true);
     setError(null);
 
     try {
-      await deleteJob(selectedJob.id);
-      setDrawerOpen(false);
-      setFormOpen(false);
-      setSelectedJob(null);
+      await deleteJob(jobId);
+      if (requestSequence === deleteRequestSequence.current && selectedJob?.id === jobId) {
+        setDrawerOpen(false);
+        setFormOpen(false);
+        setSelectedJob(null);
+      }
       await loadJobs();
     } catch (error) {
-      setError(getApiErrorMessage(error, t("errors.delete_job")));
+      if (requestSequence === deleteRequestSequence.current && selectedJob?.id === jobId) {
+        setError(getApiErrorMessage(error, t("errors.delete_job")));
+      }
     } finally {
-      setDeletingJob(false);
+      if (requestSequence === deleteRequestSequence.current) {
+        setDeletingJob(false);
+      }
     }
-  }, [cancelDetailRequest, loadJobs, selectedJob]);
+  }, [cancelDetailRequest, cancelFormRequest, loadJobs, selectedJob]);
 
   const handleAnalyzeJob = useCallback(async () => {
     if (!selectedJob) return;

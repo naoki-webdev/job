@@ -27,9 +27,9 @@ class JobScoreCalculator
     records = [ job.position, job.location, *job.tech_stacks ].compact
     return records.sum { |record| record.score_weight.to_i } unless @fresh_master_weights
 
-    # Job saves hold the owner lock here. Validation may have cached older
-    # masters before that lock, but reloading relations would lose pending
-    # assignments on a new job. Refresh only the weights used for calculation.
+    # 求人の保存処理では、ここで所有者のロックを保持します。ロック取得前に検証処理が
+    # 古いマスターをキャッシュしている可能性がありますが、関連を再読み込みすると
+    # 新規求人に対する未反映の割り当てが失われます。計算に使う重みだけを更新します。
     records.group_by(&:class).sum do |model, assigned|
       weights = model.uncached do
         model.where(id: assigned.filter_map(&:id)).pluck(:id, :score_weight).to_h

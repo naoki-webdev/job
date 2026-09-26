@@ -84,6 +84,20 @@ afterEach(() => {
 });
 
 describe("useJobsList", () => {
+  it("keeps saved edits when an older detail refresh finishes", async () => {
+    let resolveDetail!: (job: ReturnType<typeof buildJob>) => void;
+    mockedFetchJob.mockReturnValueOnce(new Promise((resolve) => { resolveDetail = resolve; }));
+    const { result } = renderHook(() => useJobsList());
+    act(() => result.current.openJobPreview(buildJob()));
+    act(() => result.current.handleOpenEditForm());
+    let refresh!: Promise<void>;
+    act(() => { refresh = result.current.refreshSelectedJob(); });
+    mockedUpdateJob.mockResolvedValueOnce(buildJob({ company_name: "Saved" }));
+    await act(async () => { await result.current.handleSubmitForm(payload); });
+    await act(async () => { resolveDetail(buildJob({ company_name: "Old" })); await refresh; });
+    expect(result.current.selectedJob?.company_name).toBe("Saved");
+  });
+
   it.each(["row", "preview", "close", "edit", "delete"] as const)("ignores a completed analysis after changing the detail via %s", async (action) => {
     let resolveAnalysis!: (job: ReturnType<typeof buildJob>) => void;
     vi.mocked(analyzeJob).mockReturnValueOnce(new Promise((resolve) => { resolveAnalysis = resolve; }));
@@ -165,6 +179,22 @@ describe("useJobsList", () => {
     expect(result.current.summaryItems[1].value).toBe(2);
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
+  });
+
+  it("uses current filters when an older load callback runs later", async () => {
+    const { result } = renderHook(() => useJobsList());
+    const oldLoad = result.current.loadJobs;
+
+    act(() => result.current.handleKeywordChange("react"));
+    await act(async () => {
+      await oldLoad();
+    });
+
+    expect(mockedFetchJobs).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ keyword: "react" }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it("keeps the ranking independent from table sorting and pagination", async () => {
@@ -312,6 +342,33 @@ describe("useJobsList", () => {
     expect(result.current.statusUpdating).toBe(false);
   });
 
+  it("does not reopen an older job after an edit resolves late", async () => {
+    let resolveUpdate!: (value: ReturnType<typeof buildJob>) => void;
+    mockedUpdateJob.mockReturnValueOnce(new Promise((resolve) => { resolveUpdate = resolve; }));
+    const firstJob = buildJob({ id: 1, company_name: "編集対象" });
+    const secondJob = buildJob({ id: 2, company_name: "別の選択" });
+    const { result } = renderHook(() => useJobsList());
+
+    act(() => result.current.openJobPreview(firstJob));
+    act(() => result.current.handleOpenEditForm());
+    expect(result.current.formMode).toBe("edit");
+    let updateRequest!: Promise<void>;
+    act(() => {
+      updateRequest = result.current.handleSubmitForm(payload);
+      result.current.openJobPreview(secondJob);
+    });
+
+    resolveUpdate(buildJob({ id: 1, company_name: "古い更新" }));
+    await act(async () => {
+      await updateRequest;
+    });
+
+    expect(result.current.selectedJob?.id).toBe(2);
+    expect(result.current.selectedJob?.company_name).toBe("別の選択");
+    expect(result.current.drawerOpen).toBe(true);
+    expect(result.current.formOpen).toBe(false);
+  });
+
   it("stores an error when loading jobs fails", async () => {
     mockedFetchJobs.mockRejectedValueOnce(new Error("boom"));
 
@@ -402,6 +459,33 @@ describe("useJobsList", () => {
     expect(result.current.selectedJob).toBeNull();
     expect(result.current.drawerOpen).toBe(false);
     expect(result.current.formOpen).toBe(false);
+  });
+
+  it("keeps a newer detail open when an older delete resolves", async () => {
+    let resolveDelete!: () => void;
+    mockedDeleteJob.mockReturnValueOnce(new Promise<void>((resolve) => { resolveDelete = resolve; }));
+    const firstJob = buildJob({ id: 11, company_name: "削除対象" });
+    const secondJob = buildJob({ id: 12, company_name: "表示対象" });
+    const { result } = renderHook(() => useJobsList());
+
+    act(() => result.current.openJobPreview(firstJob));
+    let deleteRequest!: Promise<void>;
+    act(() => {
+      deleteRequest = result.current.handleDeleteJob();
+      result.current.openJobPreview(secondJob);
+    });
+
+    expect(result.current.selectedJob?.id).toBe(12);
+    expect(result.current.drawerOpen).toBe(true);
+    expect(result.current.deletingJob).toBe(false);
+
+    await act(async () => {
+      resolveDelete();
+      await deleteRequest;
+    });
+
+    expect(result.current.selectedJob?.id).toBe(12);
+    expect(result.current.drawerOpen).toBe(true);
   });
 
   it.each([20, 0])("reloads a valid page after deletion leaves %i jobs", async (remainingCount) => {

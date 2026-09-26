@@ -37,7 +37,7 @@ class Job < ApplicationRecord
   validates :employment_type, presence: true
   validates :salary_min, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validates :salary_max, presence: true, numericality: { greater_than_or_equal_to: 0 }
-  validates :salary_max, numericality: { greater_than_or_equal_to: :salary_min }
+  validate :salary_range_is_valid
   validates :tech_stacks, presence: true
   validates :location, presence: true
   validates :source_url, length: { maximum: 2048 }, format: { with: %r{\Ahttps?://.+\z}i, allow_blank: true }
@@ -82,10 +82,15 @@ class Job < ApplicationRecord
     errors.add(:tech_stacks, "must belong to the same user") if foreign_tech_stack
   end
 
+  def salary_range_is_valid
+    return if salary_min.blank? || salary_max.blank?
+    return if salary_max >= salary_min
+
+    errors.add(:salary_max, "must be greater than or equal to #{salary_min}")
+  end
+
   def set_score
     self.score = self.class.uncached { JobScoreCalculator.call(self, fresh_master_weights: true) }
-    # A concurrent master update may have changed the stored score, even if
-    # the newly calculated value equals this instance's original value.
     score_will_change!
   end
 

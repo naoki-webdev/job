@@ -74,6 +74,24 @@ class JobTest < ActiveSupport::TestCase
     assert_includes job.errors[:salary_max], "must be greater than or equal to 6000000"
   end
 
+  test "reports missing salary minimum without raising while checking the range" do
+    job = Job.new(
+      user: @user,
+      company_name: "給与未入力",
+      position: @position,
+      status: "interested",
+      work_style: "hybrid",
+      employment_type: "full_time",
+      salary_min: nil,
+      salary_max: 5_000_000,
+      location: @location
+    )
+    job.tech_stacks = [ @rails ]
+
+    assert_not job.valid?
+    assert_includes job.errors[:salary_min], "can't be blank"
+  end
+
   test "joins tech stack names for display" do
     job = build_job
 
