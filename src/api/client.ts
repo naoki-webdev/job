@@ -48,6 +48,7 @@ export function buildQuery(params: JobsListParams = {}): string {
   if (params.direction) searchParams.set("direction", params.direction);
   if (params.page) searchParams.set("page", String(params.page));
   if (params.per_page) searchParams.set("per_page", String(params.per_page));
+  if (params.include_metadata === false) searchParams.set("include_metadata", "false");
 
   const query = searchParams.toString();
   return query ? `?${query}` : "";

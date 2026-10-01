@@ -124,7 +124,7 @@ describe("useJobsList", () => {
     expect(result.current.selectedJob?.id).toBe(action === "delete" ? undefined : action === "row" || action === "preview" ? 2 : 1);
     expect(result.current.selectedJob?.company_name).not.toBe("Stale analysis");
     expect(result.current.analyzingJob).toBe(false);
-    expect(mockedFetchJobs).toHaveBeenCalledTimes(action === "delete" ? 2 : 0);
+    expect(mockedFetchJobs).toHaveBeenCalledTimes(action === "delete" ? 1 : 0);
   });
 
   it("does not clear the next analysis loading state or show the previous error", async () => {
@@ -163,17 +163,9 @@ describe("useJobsList", () => {
       direction: "desc",
       page: 1,
       per_page: 20,
+      include_metadata: true,
     }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
-    expect(mockedFetchJobs).toHaveBeenNthCalledWith(2, {
-      keyword: "",
-      status: [],
-      work_style: [],
-      sort: "score",
-      direction: "desc",
-      page: 1,
-      per_page: 3,
-    }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
-    expect(mockedFetchJobs).toHaveBeenCalledTimes(2);
+    expect(mockedFetchJobs).toHaveBeenCalledTimes(1);
     expect(result.current.jobs).toHaveLength(2);
     expect(result.current.totalCount).toBe(2);
     expect(result.current.summaryItems[1].value).toBe(2);
@@ -197,22 +189,23 @@ describe("useJobsList", () => {
     );
   });
 
-  it("keeps the ranking independent from table sorting and pagination", async () => {
+  it("keeps the score ranking while the table is sorted and paged", async () => {
+    const rankingJobs = [
+      buildJob({ id: 10, company_name: "最高スコア", score: 99 }),
+      buildJob({ id: 11, company_name: "次点", score: 88 }),
+      buildJob({ id: 12, company_name: "三番手", score: 80 }),
+    ];
     mockedFetchJobs
       .mockResolvedValueOnce({
         ...response,
-        jobs: [buildJob({ id: 1, company_name: "一覧の求人", score: 40 })],
-        meta: { ...response.meta, total_count: 4 },
+        jobs: rankingJobs,
+        ranking_jobs: rankingJobs,
+        meta: { ...response.meta, total_count: 4, recommended_job_ids: [10] },
       })
       .mockResolvedValueOnce({
         ...response,
-        jobs: [
-          buildJob({ id: 10, company_name: "最高スコア", score: 99 }),
-          buildJob({ id: 11, company_name: "次点", score: 88 }),
-          buildJob({ id: 12, company_name: "三番手", score: 80 }),
-          buildJob({ id: 13, company_name: "見送り", score: 100, status: "rejected" }),
-        ],
-        meta: { ...response.meta, total_count: 4, recommended_job_ids: [10] },
+        jobs: [buildJob({ id: 1, company_name: "一覧の求人", score: 40 })],
+        meta: { ...response.meta, page: 2, total_count: 21 },
       });
 
     const { result } = renderHook(() => useJobsList());
@@ -221,39 +214,42 @@ describe("useJobsList", () => {
       await result.current.loadJobs();
     });
 
-    expect(result.current.jobs[0].id).toBe(1);
-    expect(result.current.rankingJobs.map((job) => job.id)).toEqual([10, 11, 12, 13]);
+    expect(result.current.jobs[0].id).toBe(10);
+    expect(result.current.rankingJobs.map((job) => job.id)).toEqual([10, 11, 12]);
     expect(result.current.recommendedJobIds).toEqual([10]);
+    act(() => {
+      result.current.handleSortChange("updated_at", "desc");
+      result.current.handlePageChange(2);
+    });
+    await act(async () => { await result.current.loadJobs(); });
+
+    expect(mockedFetchJobs).toHaveBeenCalledTimes(2);
+    expect(mockedFetchJobs.mock.calls[1][0]).toEqual(
+      expect.objectContaining({ sort: "updated_at", direction: "desc", page: 2 }),
+    );
+    expect(result.current.jobs[0].id).toBe(1);
+    expect(result.current.rankingJobs.map((job) => job.id)).toEqual([10, 11, 12]);
     expect(mockedFetchJobs).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ sort: "score", direction: "desc", page: 1, per_page: 3 }),
+      expect.objectContaining({ sort: "updated_at", direction: "desc", page: 2 }),
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 
   it("ignores stale responses when filters change during a request", async () => {
     let resolveFirstList!: (value: typeof response) => void;
-    let resolveFirstRanking!: (value: typeof response) => void;
     const firstList = new Promise<typeof response>((resolve) => {
       resolveFirstList = resolve;
-    });
-    const firstRanking = new Promise<typeof response>((resolve) => {
-      resolveFirstRanking = resolve;
     });
     const latestList = {
       ...response,
       jobs: [buildJob({ id: 20, company_name: "reactの求人" })],
-    };
-    const latestRanking = {
-      ...response,
-      jobs: [buildJob({ id: 20, company_name: "reactの求人", score: 99 })],
+      ranking_jobs: [buildJob({ id: 20, company_name: "reactの求人", score: 99 })],
     };
 
     mockedFetchJobs
       .mockReturnValueOnce(firstList)
-      .mockReturnValueOnce(firstRanking)
-      .mockResolvedValueOnce(latestList)
-      .mockResolvedValueOnce(latestRanking);
+      .mockResolvedValueOnce(latestList);
 
     const { result } = renderHook(() => useJobsList());
     const firstLoad = result.current.loadJobs();
@@ -268,7 +264,6 @@ describe("useJobsList", () => {
     });
 
     resolveFirstList(response);
-    resolveFirstRanking(response);
     await act(async () => {
       await firstLoad;
     });
@@ -394,7 +389,7 @@ describe("useJobsList", () => {
     });
 
     expect(mockedCreateJob).toHaveBeenCalledWith(payload);
-    expect(mockedFetchJobs).toHaveBeenCalledTimes(2);
+    expect(mockedFetchJobs).toHaveBeenCalledTimes(1);
     expect(result.current.formOpen).toBe(false);
     expect(result.current.formError).toBeNull();
   });
@@ -455,7 +450,7 @@ describe("useJobsList", () => {
 
     expect(window.confirm).toHaveBeenCalled();
     expect(mockedDeleteJob).toHaveBeenCalledWith(11);
-    expect(mockedFetchJobs).toHaveBeenCalledTimes(2);
+    expect(mockedFetchJobs).toHaveBeenCalledTimes(1);
     expect(result.current.selectedJob).toBeNull();
     expect(result.current.drawerOpen).toBe(false);
     expect(result.current.formOpen).toBe(false);

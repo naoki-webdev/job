@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../api/jobs";
@@ -103,13 +103,15 @@ afterEach(() => {
 });
 
 describe("useMasterData", () => {
-  it("loads all master data on mount", async () => {
+  it("loads all master data on demand", async () => {
     const { result } = renderHook(() => useMasterData());
 
-    await waitFor(() => {
-      expect(result.current.locations).toEqual(locationItems);
+    expect(mockedFetchLocations).not.toHaveBeenCalled();
+    await act(async () => {
+      await result.current.loadMasters();
     });
 
+    expect(result.current.locations).toEqual(locationItems);
     expect(result.current.positions).toEqual(positionItems);
     expect(result.current.techStacks).toEqual(techStackItems);
     expect(result.current.positiveKeywords).toEqual(positiveKeywordItems);
@@ -118,11 +120,27 @@ describe("useMasterData", () => {
     expect(result.current.loadError).toBeNull();
   });
 
+  it("can retry loading master data after a non-retryable request error", async () => {
+    mockedFetchLocations
+      .mockRejectedValueOnce(new ApiError(422, "Invalid request"))
+      .mockResolvedValueOnce(locationItems);
+    const { result } = renderHook(() => useMasterData());
+
+    await act(async () => { await result.current.loadMasters(); });
+    expect(result.current.loadError).not.toBeNull();
+    expect(result.current.loadingMasters).toBe(false);
+
+    await act(async () => { await result.current.loadMasters(); });
+    expect(result.current.locations).toEqual(locationItems);
+    expect(result.current.loadError).toBeNull();
+    expect(mockedFetchLocations).toHaveBeenCalledTimes(2);
+  });
+
   it("creates a position and reloads the master data", async () => {
     const payload: MasterDataPayload = { name: "テックリード", score_weight: 15, active: true, display_order: 1 };
     const { result } = renderHook(() => useMasterData());
 
-    await waitFor(() => expect(mockedFetchPositions).toHaveBeenCalledTimes(1));
+    await act(async () => { await result.current.loadMasters(); });
     mockedFetchLocations.mockClear();
     mockedFetchPositions.mockClear();
     mockedFetchTechStacks.mockClear();
@@ -147,7 +165,7 @@ describe("useMasterData", () => {
   it("creates a positive keyword and reloads the master data", async () => {
     const { result } = renderHook(() => useMasterData());
 
-    await waitFor(() => expect(mockedFetchPositiveKeywords).toHaveBeenCalledTimes(1));
+    await act(async () => { await result.current.loadMasters(); });
     mockedFetchPositiveKeywords.mockClear();
 
     await act(async () => {
@@ -173,8 +191,6 @@ describe("useMasterData", () => {
 
     const { result } = renderHook(() => useMasterData());
 
-    await waitFor(() => expect(mockedFetchTechStacks).toHaveBeenCalledTimes(1));
-
     await act(async () => {
       await result.current.handleDeleteTechStack(3);
     });
@@ -187,8 +203,6 @@ describe("useMasterData", () => {
     mockedUpdateLocation.mockRejectedValueOnce(new ApiError(422, "Name can't be blank", ["Name can't be blank"]));
 
     const { result } = renderHook(() => useMasterData());
-
-    await waitFor(() => expect(mockedFetchLocations).toHaveBeenCalledTimes(1));
 
     await act(async () => {
       await result.current.handleUpdateLocation(1, { name: "大阪", score_weight: 4, active: true, display_order: 1 });
@@ -220,14 +234,14 @@ describe("useMasterData", () => {
 
     const { result } = renderHook(() => useMasterData());
 
-    await act(async () => {
-      await result.current.loadMasters();
-    });
+    let firstLoad!: Promise<void>;
+    act(() => { firstLoad = result.current.loadMasters(); });
+    await act(async () => { await result.current.loadMasters(true); });
 
     expect(result.current.locations).toEqual(latestLocations);
     resolveFirst(locationItems);
     await act(async () => {
-      await Promise.resolve();
+      await firstLoad;
     });
 
     expect(result.current.locations).toEqual(latestLocations);

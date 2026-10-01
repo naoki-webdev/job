@@ -26,38 +26,53 @@ class JobsQuery
     ordered_scope.offset((page - 1) * per_page).limit(per_page)
   end
 
+  def results_include_ranking?
+    page == 1 && per_page >= 3 && sort_key == "score" && sort_direction == "desc"
+  end
+
   def export_scope
     ordered_scope
   end
 
   def total_count
-    count_for(filtered_scope)
+    metadata[:total_count]
   end
 
   def summary
-    {
-      remote_friendly: count_for(filtered_scope.where.not(work_style: "onsite")),
-      active_pipeline: count_for(filtered_scope.where(status: ACTIVE_PIPELINE_STATUSES)),
-      high_score: count_for(filtered_scope.where("jobs.score >= ?", 50))
-    }
+    metadata[:summary]
   end
 
   def recommended_job_ids
-    @recommended_job_ids ||= begin
-      eligible_scope = filtered_scope.where.not(status: "rejected").unscope(:order)
-      eligible_count = count_for(eligible_scope)
+    metadata[:recommended_job_ids]
+  end
 
-      if eligible_count.zero?
-        []
-      else
-        recommended_count = [ (eligible_count + 9) / 10, 1 ].max
+  def metadata
+    @metadata ||= begin
+      total_count, remote_friendly, active_pipeline, high_score, eligible_count = filtered_scope
+        .unscope(:order)
+        .pick(
+          Arel.sql("COUNT(jobs.id)"),
+          Arel.sql("COUNT(jobs.id) FILTER (WHERE jobs.work_style <> 'onsite')"),
+          Arel.sql("COUNT(jobs.id) FILTER (WHERE jobs.status IN ('interested', 'applied', 'interviewing'))"),
+          Arel.sql("COUNT(jobs.id) FILTER (WHERE jobs.score >= 50)"),
+          Arel.sql("COUNT(jobs.id) FILTER (WHERE jobs.status <> 'rejected')")
+        ).map(&:to_i)
 
-        eligible_scope
-          .order(score: :desc, id: :asc)
-          .limit(recommended_count)
-          .pluck(:id)
-      end
+      {
+        total_count: total_count,
+        summary: {
+          remote_friendly: remote_friendly,
+          active_pipeline: active_pipeline,
+          high_score: high_score
+        },
+        recommended_job_ids: recommended_ids_for(eligible_count)
+      }
     end
+  end
+
+  def include_metadata?
+    raw_value = @params[:include_metadata]
+    raw_value.nil? || ActiveModel::Type::Boolean.new.cast(raw_value)
   end
 
   def page
@@ -105,8 +120,17 @@ class JobsQuery
     filtered_scope.order(sort_attribute.public_send(direction), Job.arel_table[:id].asc)
   end
 
-  def count_for(scope)
-    scope.unscope(:order).count(:id)
+  def recommended_ids_for(eligible_count)
+    return [] if eligible_count.zero?
+
+    recommended_count = [ (eligible_count + 9) / 10, 1 ].max
+
+    filtered_scope
+      .where.not(status: "rejected")
+      .unscope(:order)
+      .order(score: :desc, id: :asc)
+      .limit(recommended_count)
+      .pluck(:id)
   end
 
   def keyword_matching_ids(scope, keyword)

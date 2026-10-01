@@ -46,11 +46,14 @@ export function useMasterData() {
   const [negativeKeywords, setNegativeKeywords] = useState<EvaluationKeywordItem[]>([]);
   const [interviewQuestions, setInterviewQuestions] = useState<InterviewQuestionItem[]>([]);
   const [masterDataOpen, setMasterDataOpen] = useState(false);
+  const [loadingMasters, setLoadingMasters] = useState(false);
   const [submittingMasterData, setSubmittingMasterData] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [masterDataError, setMasterDataError] = useState<string | null>(null);
   const loadRequestSequence = useRef(0);
   const loadAbortController = useRef<AbortController | null>(null);
+  const mastersLoaded = useRef(false);
+  const loadPromise = useRef<Promise<void> | null>(null);
 
   const cancelLoad = useCallback(() => {
     loadRequestSequence.current += 1;
@@ -58,56 +61,68 @@ export function useMasterData() {
     loadAbortController.current = null;
   }, []);
 
-  const loadMasters = useCallback(async () => {
+  const loadMasters = useCallback(async (force = false) => {
+    if (mastersLoaded.current && !force) return;
+    if (loadPromise.current && !force) return loadPromise.current;
+    const shouldShowLoading = force || !mastersLoaded.current;
+    if (force) mastersLoaded.current = false;
+
     cancelLoad();
     const requestSequence = loadRequestSequence.current;
     const abortController = new AbortController();
     loadAbortController.current = abortController;
     setLoadError(null);
+    if (shouldShowLoading) setLoadingMasters(true);
 
-    try {
-      const [
-        locationItems,
-        positionItems,
-        techStackItems,
-        positiveKeywordItems,
-        negativeKeywordItems,
-        interviewQuestionItems,
-      ] = await retry(
-        () =>
-          Promise.all([
-            fetchLocations({ signal: abortController.signal }),
-            fetchPositions({ signal: abortController.signal }),
-            fetchTechStacks({ signal: abortController.signal }),
-            fetchPositiveKeywords({ signal: abortController.signal }),
-            fetchNegativeKeywords({ signal: abortController.signal }),
-            fetchInterviewQuestions({ signal: abortController.signal }),
-          ]),
-        { shouldRetry: isRetryableError },
-      );
-      if (requestSequence !== loadRequestSequence.current || abortController.signal.aborted) return;
+    const currentLoad = (async () => {
+      try {
+        const [
+          locationItems,
+          positionItems,
+          techStackItems,
+          positiveKeywordItems,
+          negativeKeywordItems,
+          interviewQuestionItems,
+        ] = await retry(
+          () =>
+            Promise.all([
+              fetchLocations({ signal: abortController.signal }),
+              fetchPositions({ signal: abortController.signal }),
+              fetchTechStacks({ signal: abortController.signal }),
+              fetchPositiveKeywords({ signal: abortController.signal }),
+              fetchNegativeKeywords({ signal: abortController.signal }),
+              fetchInterviewQuestions({ signal: abortController.signal }),
+            ]),
+          { shouldRetry: isRetryableError },
+        );
+        if (requestSequence !== loadRequestSequence.current || abortController.signal.aborted) return;
 
-      setLocations(locationItems);
-      setPositions(positionItems);
-      setTechStacks(techStackItems);
-      setPositiveKeywords(positiveKeywordItems);
-      setNegativeKeywords(negativeKeywordItems);
-      setInterviewQuestions(interviewQuestionItems);
-    } catch (error) {
-      if (requestSequence !== loadRequestSequence.current || isAbortError(error)) return;
+        setLocations(locationItems);
+        setPositions(positionItems);
+        setTechStacks(techStackItems);
+        setPositiveKeywords(positiveKeywordItems);
+        setNegativeKeywords(negativeKeywordItems);
+        setInterviewQuestions(interviewQuestionItems);
+        mastersLoaded.current = true;
+      } catch (error) {
+        if (requestSequence !== loadRequestSequence.current || isAbortError(error)) return;
 
-      setLoadError(t("errors.fetch_master_data"));
-    } finally {
-      if (requestSequence === loadRequestSequence.current) {
-        loadAbortController.current = null;
+        setLoadError(t("errors.fetch_master_data"));
+      } finally {
+        if (requestSequence === loadRequestSequence.current) {
+          loadAbortController.current = null;
+          loadPromise.current = null;
+          if (shouldShowLoading) setLoadingMasters(false);
+        }
       }
-    }
+    })();
+    loadPromise.current = currentLoad;
+    return currentLoad;
   }, [cancelLoad]);
 
   useEffect(() => {
-    void loadMasters();
     return cancelLoad;
-  }, [cancelLoad, loadMasters]);
+  }, [cancelLoad]);
 
   const handleOpenMasterData = useCallback(() => {
     setMasterDataError(null);
@@ -125,7 +140,7 @@ export function useMasterData() {
 
     try {
       await action();
-      await loadMasters();
+      await loadMasters(true);
       return true;
     } catch (error) {
       setMasterDataError(getApiErrorMessage(error, t("errors.update_master_data")));
@@ -232,6 +247,7 @@ export function useMasterData() {
     negativeKeywords,
     interviewQuestions,
     masterDataOpen,
+    loadingMasters,
     submittingMasterData,
     loadError,
     masterDataError,

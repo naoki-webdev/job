@@ -23,6 +23,27 @@ import type {
 } from "../types/job";
 import { isAbortError } from "../utils/retry";
 
+type CachedJobsMetadata = {
+  totalCount: number;
+  summary: {
+    remote_friendly: number;
+    active_pipeline: number;
+    high_score: number;
+  };
+  recommendedJobIds: number[];
+};
+
+const JOBS_METADATA_CACHE_LIMIT = 40;
+
+function rememberJobsMetadata(cache: Map<string, CachedJobsMetadata>, key: string, value: CachedJobsMetadata) {
+  if (!cache.has(key) && cache.size >= JOBS_METADATA_CACHE_LIMIT) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey !== undefined) cache.delete(oldestKey);
+  }
+
+  cache.set(key, value);
+}
+
 export function useJobsList() {
   const jobsRequestSequence = useRef(0);
   const jobsAbortController = useRef<AbortController | null>(null);
@@ -62,7 +83,17 @@ export function useJobsList() {
     high_score: 0,
   });
   const selectedJobRef = useRef<Job | null>(null);
+  const rankingJobsRef = useRef<Job[]>([]);
+  const rankingFiltersKey = JSON.stringify({
+    keyword: keyword.trim(),
+    statuses: [...statuses].sort(),
+    workStyles: [...workStyles].sort(),
+  });
+  const rankingFiltersKeyRef = useRef(rankingFiltersKey);
+  const cachedRankingFiltersKey = useRef<string | null>(null);
+  const jobsMetadataByFilters = useRef(new Map<string, CachedJobsMetadata>());
   selectedJobRef.current = selectedJob;
+  rankingFiltersKeyRef.current = rankingFiltersKey;
 
   const listParams = useMemo<JobsListParams>(
     () => ({
@@ -77,26 +108,40 @@ export function useJobsList() {
     [direction, keyword, page, perPage, sort, statuses, workStyles],
   );
 
-  const rankingParams = useMemo<JobsListParams>(
-    () => ({
-      keyword,
-      status: statuses,
-      work_style: workStyles,
-      sort: "score",
-      direction: "desc",
-      page: 1,
-      per_page: 3,
-    }),
-    [keyword, statuses, workStyles],
-  );
   const listParamsRef = useRef(listParams);
-  const rankingParamsRef = useRef(rankingParams);
+  const rankingParamsRef = useRef<JobsListParams>({
+    keyword,
+    status: statuses,
+    work_style: workStyles,
+    sort: "score",
+    direction: "desc",
+    page: 1,
+    per_page: 3,
+  });
   listParamsRef.current = listParams;
-  rankingParamsRef.current = rankingParams;
+  rankingParamsRef.current = {
+    keyword,
+    status: statuses,
+    work_style: workStyles,
+    sort: "score",
+    direction: "desc",
+    page: 1,
+    per_page: 3,
+  };
 
-  const loadJobs = useCallback(async () => {
+  const loadJobs = useCallback(async (refreshRanking = false) => {
     const currentListParams = listParamsRef.current;
     const currentRankingParams = rankingParamsRef.current;
+    const currentRankingFiltersKey = rankingFiltersKeyRef.current;
+    if (refreshRanking) jobsMetadataByFilters.current.clear();
+    const cachedMetadata = jobsMetadataByFilters.current.get(currentRankingFiltersKey) ?? null;
+    const includeMetadata = refreshRanking || cachedMetadata === null;
+    const listContainsRanking = currentListParams.sort === "score" &&
+      currentListParams.direction === "desc" &&
+      currentListParams.page === 1 &&
+      (currentListParams.per_page ?? 20) >= 3;
+    const shouldFetchRanking = !listContainsRanking &&
+      (refreshRanking || cachedRankingFiltersKey.current !== currentRankingFiltersKey);
     const requestSequence = jobsRequestSequence.current + 1;
     jobsRequestSequence.current = requestSequence;
     jobsAbortController.current?.abort();
@@ -108,25 +153,48 @@ export function useJobsList() {
 
     try {
       const [response, rankingResponse] = await Promise.all([
-        fetchJobs(currentListParams, { signal: abortController.signal }),
-        fetchJobs(currentRankingParams, { signal: abortController.signal }),
+        fetchJobs({ ...currentListParams, include_metadata: includeMetadata }, { signal: abortController.signal }),
+        shouldFetchRanking
+          ? fetchJobs({ ...currentRankingParams, include_metadata: false }, { signal: abortController.signal })
+          : Promise.resolve(null),
       ]);
 
       if (requestSequence !== jobsRequestSequence.current || abortController.signal.aborted) return;
 
+      const responseMetadata = response.meta.total_count !== undefined &&
+        response.meta.summary !== undefined &&
+        response.meta.recommended_job_ids !== undefined
+        ? {
+            totalCount: response.meta.total_count,
+            summary: response.meta.summary,
+            recommendedJobIds: response.meta.recommended_job_ids,
+          }
+        : cachedMetadata;
+      if (!responseMetadata) throw new Error("Jobs metadata was not returned.");
+      rememberJobsMetadata(jobsMetadataByFilters.current, currentRankingFiltersKey, responseMetadata);
+
       const currentPage = currentListParams.page ?? 1;
       const currentPerPage = currentListParams.per_page ?? 20;
-      const lastPage = Math.max(1, Math.ceil(response.meta.total_count / currentPerPage));
+      const lastPage = Math.max(1, Math.ceil(responseMetadata.totalCount / currentPerPage));
       if (currentPage > lastPage) {
         setPage(lastPage);
         return;
       }
 
+      const nextRankingJobs = response.ranking_jobs ?? (
+        listContainsRanking
+          ? response.jobs.slice(0, 3)
+          : rankingResponse?.jobs ?? rankingJobsRef.current
+      );
+      if (listContainsRanking || rankingResponse) {
+        rankingJobsRef.current = nextRankingJobs;
+        cachedRankingFiltersKey.current = currentRankingFiltersKey;
+      }
       setJobs(response.jobs);
-      setRankingJobs(rankingResponse.jobs);
-      setRecommendedJobIds(rankingResponse.meta.recommended_job_ids);
-      setTotalCount(response.meta.total_count);
-      setSummaryCounts(response.meta.summary);
+      setRankingJobs(nextRankingJobs);
+      setRecommendedJobIds(responseMetadata.recommendedJobIds);
+      setTotalCount(responseMetadata.totalCount);
+      setSummaryCounts(responseMetadata.summary);
     } catch (loadError) {
       if (requestSequence !== jobsRequestSequence.current || isAbortError(loadError)) return;
 
@@ -136,7 +204,7 @@ export function useJobsList() {
         setLoading(false);
       }
     }
-  }, [listParams, page, perPage, rankingParams]);
+  }, [cachedRankingFiltersKey, listParams]);
 
   useEffect(() => {
     return () => {
@@ -331,7 +399,7 @@ export function useJobsList() {
       if (requestSequence !== statusRequestSequence.current || selectedJob?.id !== jobId) return;
 
       setSelectedJob(updated);
-      await loadJobs();
+      await loadJobs(true);
     } catch (error) {
       if (requestSequence !== statusRequestSequence.current) return;
 
@@ -365,7 +433,7 @@ export function useJobsList() {
       }
 
       if (requestSequence === formRequestSequence.current) setFormOpen(false);
-      await loadJobs();
+      await loadJobs(true);
     } catch (error) {
       if (requestSequence === formRequestSequence.current) {
         setFormError(getApiErrorMessage(error, t(formMode === "create" ? "errors.create_job" : "errors.update_job")));
@@ -393,7 +461,7 @@ export function useJobsList() {
         setFormOpen(false);
         setSelectedJob(null);
       }
-      await loadJobs();
+      await loadJobs(true);
     } catch (error) {
       if (requestSequence === deleteRequestSequence.current && selectedJob?.id === jobId) {
         setError(getApiErrorMessage(error, t("errors.delete_job")));

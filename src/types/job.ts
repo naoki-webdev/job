@@ -91,17 +91,18 @@ export type JobAiEvaluation = {
 export type JobsListMeta = {
   page: number;
   per_page: number;
-  total_count: number;
-  summary: {
+  total_count?: number;
+  summary?: {
     remote_friendly: number;
     active_pipeline: number;
     high_score: number;
   };
-  recommended_job_ids: number[];
+  recommended_job_ids?: number[];
 };
 
 export type JobsListResponse = {
   jobs: Job[];
+  ranking_jobs?: Job[] | null;
   meta: JobsListMeta;
 };
 
@@ -184,6 +185,7 @@ export type JobsListParams = {
   direction?: SortDirection;
   page?: number;
   per_page?: number;
+  include_metadata?: boolean;
 };
 
 export type JobUpdatePayload = Partial<JobFormPayload>;

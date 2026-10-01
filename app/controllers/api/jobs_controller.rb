@@ -9,21 +9,29 @@ module Api
 
     def index
       query = JobsQuery.new(params: params, scope: current_user.jobs)
-      jobs = query.results.includes(:position, :location, :tech_stacks).with_attached_company_logo
+      jobs = query.results.includes(:position, :location, :tech_stacks).with_attached_company_logo.to_a
+      scoring_preference = ScoringPreference.for_calculation(user: current_user)
+      ranking_jobs = if query.results_include_ranking?
+        JobSerializer.collection(
+          jobs.first(3),
+          url_options: url_options,
+          scoring_preference: scoring_preference
+        )
+      end
+      meta = {
+        page: query.page,
+        per_page: query.per_page
+      }
+      meta.merge!(query.metadata) if query.include_metadata?
 
       render json: {
         jobs: JobSerializer.collection(
           jobs,
           url_options: url_options,
-          scoring_preference: ScoringPreference.for_calculation(user: current_user)
+          scoring_preference: scoring_preference
         ),
-        meta: {
-          page: query.page,
-          per_page: query.per_page,
-          total_count: query.total_count,
-          summary: query.summary,
-          recommended_job_ids: query.recommended_job_ids
-        }
+        ranking_jobs: ranking_jobs,
+        meta: meta
       }
     rescue JobsQuery::InvalidFilterError
       render_api_error(
@@ -55,23 +63,60 @@ module Api
         @job.update_columns(
           ai_analysis_status: "completed",
           ai_analysis_input_digest: digest,
-          ai_analysis_error: nil
+          ai_analysis_error: nil,
+          ai_analysis_state_updated_at: Time.current
         )
         return render_analysis_response(status: :ok)
       end
 
       should_enqueue = false
+      queued_at = nil
       @job.with_lock do
-        unless @job.ai_analysis_status.in?(%w[queued running]) && @job.ai_analysis_input_digest == digest
+        same_analysis_active = @job.ai_analysis_status.in?(%w[queued running]) && @job.ai_analysis_input_digest == digest
+        state_stale = @job.ai_analysis_state_updated_at.nil? || @job.ai_analysis_state_updated_at < 10.minutes.ago
+        unless same_analysis_active && !state_stale
+          queued_at = Time.current
           @job.update_columns(
             ai_analysis_status: "queued",
             ai_analysis_input_digest: digest,
-            ai_analysis_error: nil
+            ai_analysis_error: nil,
+            ai_analysis_state_updated_at: queued_at
           )
           should_enqueue = true
         end
       end
-      AnalyzeJob.perform_later(@job.id, current_user.id) if should_enqueue
+      if should_enqueue
+        begin
+          queued_job = AnalyzeJob.perform_later(@job.id, current_user.id, queued_at)
+          if queued_job.nil? || (queued_job.respond_to?(:successfully_enqueued?) && !queued_job.successfully_enqueued?)
+            raise "AI analysis job was not enqueued"
+          end
+        rescue StandardError => error
+          Job.where(
+            id: @job.id,
+            ai_analysis_status: "queued",
+            ai_analysis_input_digest: digest,
+            ai_analysis_state_updated_at: queued_at
+          ).update_all(
+            ai_analysis_status: "failed",
+            ai_analysis_error: "AI判定を開始できませんでした。時間をおいて再試行してください。",
+            ai_analysis_state_updated_at: Time.current
+          )
+          Rails.logger.error(
+            {
+              event: "job_ai_analysis_enqueue_failed",
+              job_id: @job.id,
+              user_id: current_user.id,
+              error_class: error.class.name
+            }.to_json
+          )
+          return render_api_error(
+            [ "AI判定を開始できませんでした。時間をおいて再試行してください。" ],
+            status: :service_unavailable,
+            code: "JOB_ANALYSIS_ENQUEUE_FAILED"
+          )
+        end
+      end
 
       render_analysis_response(status: :accepted)
     rescue ArgumentError => error

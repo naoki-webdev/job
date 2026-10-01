@@ -15,7 +15,15 @@ export function useJobsDashboard() {
   const jobsList = useJobsList();
   const masterData = useMasterData();
   const scoring = useScoringPreference();
-  const jobImport = useJobImport({ openCreateForm: jobsList.handleOpenCreateForm });
+  const handleOpenCreateForm = useCallback((draft: Parameters<typeof jobsList.handleOpenCreateForm>[0] = null) => {
+    void masterData.loadMasters();
+    jobsList.handleOpenCreateForm(draft);
+  }, [jobsList.handleOpenCreateForm, masterData.loadMasters]);
+  const handleOpenEditForm = useCallback(() => {
+    void masterData.loadMasters();
+    jobsList.handleOpenEditForm();
+  }, [jobsList.handleOpenEditForm, masterData.loadMasters]);
+  const jobImport = useJobImport({ openCreateForm: handleOpenCreateForm });
   const [demoStateApplied, setDemoStateApplied] = useState(false);
   const {
     jobs,
@@ -23,7 +31,6 @@ export function useJobsDashboard() {
     loadJobs,
     refreshSelectedJob,
     handleRowClick,
-    handleOpenCreateForm,
   } = jobsList;
   const {
     handleOpenMasterData: openMasterData,
@@ -49,6 +56,13 @@ export function useJobsDashboard() {
   } = masterData;
   const { clearScoringError, handleSubmitScoring: submitScoring } = scoring;
 
+  const handleOpenMasterData = useCallback(() => {
+    clearScoringError();
+    void masterData.loadMasters();
+    void scoring.loadScoringPreference();
+    openMasterData();
+  }, [clearScoringError, masterData.loadMasters, openMasterData, scoring.loadScoringPreference]);
+
   useEffect(() => {
     void loadJobs();
   }, [loadJobs]);
@@ -66,7 +80,7 @@ export function useJobsDashboard() {
     }
 
     if (demoState === "settings") {
-      openMasterData();
+      handleOpenMasterData();
       setDemoStateApplied(true);
       return;
     }
@@ -75,17 +89,12 @@ export function useJobsDashboard() {
       void handleRowClick(jobs[0].id);
       setDemoStateApplied(true);
     }
-  }, [demoStateApplied, handleOpenCreateForm, handleRowClick, jobs, loading, openMasterData]);
+  }, [demoStateApplied, handleOpenCreateForm, handleOpenMasterData, handleRowClick, jobs, loading]);
 
   const reloadJobsAndSelection = useCallback(async () => {
-    await loadJobs();
+    await loadJobs(true);
     await refreshSelectedJob();
   }, [loadJobs, refreshSelectedJob]);
-
-  const handleOpenMasterData = useCallback(() => {
-    clearScoringError();
-    openMasterData();
-  }, [clearScoringError, openMasterData]);
 
   const handleCloseMasterData = useCallback(() => {
     clearScoringError();
@@ -147,40 +156,40 @@ export function useJobsDashboard() {
   }, [deleteTechStack, withMasterDataRefresh]);
 
   const handleCreatePositiveKeyword = useCallback(async (payload: EvaluationKeywordPayload) => {
-    await createPositiveKeyword(payload);
-  }, [createPositiveKeyword]);
+    await withMasterDataRefresh(() => createPositiveKeyword(payload));
+  }, [createPositiveKeyword, withMasterDataRefresh]);
 
   const handleUpdatePositiveKeyword = useCallback(async (id: number, payload: EvaluationKeywordPayload) => {
-    await updatePositiveKeyword(id, payload);
-  }, [updatePositiveKeyword]);
+    await withMasterDataRefresh(() => updatePositiveKeyword(id, payload));
+  }, [updatePositiveKeyword, withMasterDataRefresh]);
 
   const handleDeletePositiveKeyword = useCallback(async (id: number) => {
-    await deletePositiveKeyword(id);
-  }, [deletePositiveKeyword]);
+    await withMasterDataRefresh(() => deletePositiveKeyword(id));
+  }, [deletePositiveKeyword, withMasterDataRefresh]);
 
   const handleCreateNegativeKeyword = useCallback(async (payload: EvaluationKeywordPayload) => {
-    await createNegativeKeyword(payload);
-  }, [createNegativeKeyword]);
+    await withMasterDataRefresh(() => createNegativeKeyword(payload));
+  }, [createNegativeKeyword, withMasterDataRefresh]);
 
   const handleUpdateNegativeKeyword = useCallback(async (id: number, payload: EvaluationKeywordPayload) => {
-    await updateNegativeKeyword(id, payload);
-  }, [updateNegativeKeyword]);
+    await withMasterDataRefresh(() => updateNegativeKeyword(id, payload));
+  }, [updateNegativeKeyword, withMasterDataRefresh]);
 
   const handleDeleteNegativeKeyword = useCallback(async (id: number) => {
-    await deleteNegativeKeyword(id);
-  }, [deleteNegativeKeyword]);
+    await withMasterDataRefresh(() => deleteNegativeKeyword(id));
+  }, [deleteNegativeKeyword, withMasterDataRefresh]);
 
   const handleCreateInterviewQuestion = useCallback(async (payload: InterviewQuestionPayload) => {
-    await createInterviewQuestion(payload);
-  }, [createInterviewQuestion]);
+    await withMasterDataRefresh(() => createInterviewQuestion(payload));
+  }, [createInterviewQuestion, withMasterDataRefresh]);
 
   const handleUpdateInterviewQuestion = useCallback(async (id: number, payload: InterviewQuestionPayload) => {
-    await updateInterviewQuestion(id, payload);
-  }, [updateInterviewQuestion]);
+    await withMasterDataRefresh(() => updateInterviewQuestion(id, payload));
+  }, [updateInterviewQuestion, withMasterDataRefresh]);
 
   const handleDeleteInterviewQuestion = useCallback(async (id: number) => {
-    await deleteInterviewQuestion(id);
-  }, [deleteInterviewQuestion]);
+    await withMasterDataRefresh(() => deleteInterviewQuestion(id));
+  }, [deleteInterviewQuestion, withMasterDataRefresh]);
 
   const error = jobsList.error ?? masterData.loadError ?? scoring.loadError;
 
@@ -219,11 +228,13 @@ export function useJobsDashboard() {
       negativeKeywords: masterData.negativeKeywords,
       interviewQuestions: masterData.interviewQuestions,
       open: masterData.masterDataOpen,
+      loading: masterData.loadingMasters,
       submitting: masterData.submittingMasterData,
       error: masterData.masterDataError,
     },
     scoring: {
       preference: scoring.scoringPreference,
+      loading: scoring.loadingScoringPreference,
       submitting: scoring.submittingScoring,
       error: scoring.scoringError,
     },
@@ -249,8 +260,8 @@ export function useJobsDashboard() {
       handleClearFilters: jobsList.handleClearFilters,
       handleRowClick: jobsList.handleRowClick,
       handleCloseDrawer: jobsList.handleCloseDrawer,
-      handleOpenCreateForm: jobsList.handleOpenCreateForm,
-      handleOpenEditForm: jobsList.handleOpenEditForm,
+      handleOpenCreateForm,
+      handleOpenEditForm,
       handleCloseForm: jobsList.handleCloseForm,
       handleOpenImport: jobImport.handleOpenImport,
       handleCloseImport: jobImport.handleCloseImport,

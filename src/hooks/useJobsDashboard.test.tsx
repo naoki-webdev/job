@@ -75,6 +75,7 @@ function buildMasterDataMock(overrides = {}) {
     negativeKeywords: [],
     interviewQuestions: [],
     masterDataOpen: false,
+    loadingMasters: true,
     submittingMasterData: false,
     loadError: null,
     masterDataError: null,
@@ -106,6 +107,7 @@ function buildMasterDataMock(overrides = {}) {
 function buildScoringMock(overrides = {}) {
   return {
     scoringPreference: null,
+    loadingScoringPreference: true,
     submittingScoring: false,
     loadError: null,
     scoringError: null,

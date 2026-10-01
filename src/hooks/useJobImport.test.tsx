@@ -144,4 +144,27 @@ describe("useJobImport", () => {
     );
     expect((mockedCreateJobDraft.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(true);
   });
+
+  it("clears the previous result while a new analysis is in progress", async () => {
+    mockedCreateJobDraft.mockResolvedValueOnce(draftResponse);
+    let resolveLatest!: (value: typeof draftResponse) => void;
+    mockedCreateJobDraft.mockReturnValueOnce(new Promise((resolve) => { resolveLatest = resolve; }));
+    const { result } = renderHook(() => useJobImport({ openCreateForm: vi.fn() }));
+
+    await act(async () => {
+      await result.current.handleAnalyzeImport({ mode: "rule", text: "求人A", url: "" });
+    });
+    let analysis!: Promise<void>;
+    act(() => {
+      analysis = result.current.handleAnalyzeImport({ mode: "rule", text: "求人B", url: "" });
+    });
+
+    expect(result.current.importResult).toBeNull();
+    act(() => result.current.handleConfirmImport());
+    expect(result.current.importOpen).toBe(false);
+
+    resolveLatest(draftResponse);
+    await act(async () => { await analysis; });
+    expect(result.current.importResult).toEqual(draftResponse);
+  });
 });

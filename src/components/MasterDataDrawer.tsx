@@ -6,6 +6,7 @@ import Drawer from "@mui/material/Drawer";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
+import PageLoader from "./PageLoader";
 import { t } from "../i18n";
 import type {
   EvaluationKeywordItem,
@@ -34,6 +35,7 @@ import ScoringRuleSection from "./ScoringRuleSection";
 
 type MasterDataDrawerProps = {
   open: boolean;
+  loading?: boolean;
   preference: ScoringPreference | null;
   locations: MasterDataItem[];
   positions: MasterDataItem[];
@@ -69,6 +71,7 @@ type MasterDataDrawerProps = {
 
 function MasterDataDrawer({
   open,
+  loading = false,
   preference,
   locations,
   positions,
@@ -163,6 +166,11 @@ function MasterDataDrawer({
           flexDirection: "column",
         }}
       >
+        {loading ? (
+          <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <PageLoader />
+          </Box>
+        ) : (
         <Box sx={{ flex: 1, overflowY: "auto", px: { xs: 2, sm: 2.5 }, py: 2.5 }}>
           <Stack spacing={2.25}>
             <Box sx={{ pb: 0.25 }}>
@@ -237,6 +245,7 @@ function MasterDataDrawer({
             />
           </Stack>
         </Box>
+        )}
 
         <Box
           sx={{
@@ -260,7 +269,7 @@ function MasterDataDrawer({
                 if (!payload) return;
                 void onSubmitScoring(payload);
               }}
-              disabled={submittingScoring || hasEmptyScoringField(scoringValues)}
+              disabled={loading || submittingScoring || hasEmptyScoringField(scoringValues)}
             >
               {submittingScoring ? t("actions.saving") : t("actions.save_scoring")}
             </Button>

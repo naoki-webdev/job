@@ -39,6 +39,7 @@ import OverflowTooltipText from "./OverflowTooltipText";
 type JobFormDrawerProps = {
   open: boolean;
   mode: "create" | "edit";
+  loadingOptions?: boolean;
   initialJob: Job | null;
   initialDraft?: Partial<JobFormPayload> | null;
   locations: MasterDataItem[];
@@ -53,6 +54,7 @@ type JobFormDrawerProps = {
 function JobFormDrawer({
   open,
   mode,
+  loadingOptions = false,
   initialJob,
   initialDraft,
   locations,
@@ -131,9 +133,11 @@ function JobFormDrawer({
               labelId="job-form-position-label"
               label={t("jobs.form.position")}
               value={formValues.position_id || ""}
+              disabled={loadingOptions}
               onChange={(event) => handleChange("position_id", parseNumericInput(event.target.value))}
               onBlur={() => handleBlur("position_id")}
             >
+              {loadingOptions && <MenuItem disabled value="">{t("common.loading")}</MenuItem>}
               {selectablePositions.map((position) => (
                 <MenuItem key={position.id} value={position.id}>
                   {formatMasterDataName(position)}
@@ -171,12 +175,15 @@ function JobFormDrawer({
               labelId="job-form-work-style-label"
               label={t("jobs.form.work_style")}
               value={formValues.work_style}
+              displayEmpty
+              renderValue={(value) => value === "" ? t("jobs.form.unknown_work_style") : t(`enums.work_style.${value}`)}
               onChange={(event: SelectChangeEvent<string>) => {
-                if (isWorkStyle(event.target.value)) {
+                if (event.target.value === "" || isWorkStyle(event.target.value)) {
                   handleChange("work_style", event.target.value);
                 }
               }}
             >
+              <MenuItem value="">{t("jobs.form.unknown_work_style")}</MenuItem>
               {WORK_STYLE_OPTIONS.map((workStyle) => (
                 <MenuItem key={workStyle} value={workStyle}>
                   {t(`enums.work_style.${workStyle}`)}
@@ -238,6 +245,7 @@ function JobFormDrawer({
               labelId="job-form-tech-stacks-label"
               multiple
               value={formValues.tech_stack_ids}
+              disabled={loadingOptions}
               onChange={(event) =>
                 handleChange("tech_stack_ids", normalizeIdList(event.target.value))
               }
@@ -247,6 +255,7 @@ function JobFormDrawer({
                 <OverflowTooltipText text={summarizeSelectedTechStacks(techStacks, normalizeIdList(selected))} />
               )}
             >
+              {loadingOptions && <MenuItem disabled value="">{t("common.loading")}</MenuItem>}
               {selectableTechStacks.map((techStack) => (
                 <MenuItem key={techStack.id} value={techStack.id}>
                   <Checkbox checked={formValues.tech_stack_ids.includes(techStack.id)} size="small" />
@@ -264,9 +273,11 @@ function JobFormDrawer({
               labelId="job-form-location-label"
               label={t("jobs.form.location")}
               value={formValues.location_id || ""}
+              disabled={loadingOptions}
               onChange={(event) => handleChange("location_id", parseNumericInput(event.target.value))}
               onBlur={() => handleBlur("location_id")}
             >
+              {loadingOptions && <MenuItem disabled value="">{t("common.loading")}</MenuItem>}
               {selectableLocations.map((location) => (
                 <MenuItem key={location.id} value={location.id}>
                   {formatMasterDataName(location)}

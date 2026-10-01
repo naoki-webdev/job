@@ -67,6 +67,20 @@ describe("JobFormDrawer", () => {
     expect(screen.getByRole("spinbutton", { name: "年収上限" })).toHaveValue(6_000_000);
   });
 
+  it("leaves unknown imported salary and work style empty", async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+    render(<JobFormDrawer {...defaultProps} initialDraft={{ company_name: "株式会社サンプル" }} onSubmit={onSubmit} />);
+
+    expect(screen.getByLabelText("働き方")).toHaveTextContent("選択してください");
+    expect(screen.getByRole("spinbutton", { name: "年収下限" })).toHaveValue(null);
+    expect(screen.getByRole("spinbutton", { name: "年収上限" })).toHaveValue(null);
+
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getAllByText("入力してください。")).toHaveLength(5);
+  });
+
   it("shows required validation errors and blocks submit when required fields are missing", async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();

@@ -52,8 +52,13 @@ afterEach(() => {
 });
 
 describe("useScoringPreference", () => {
-  it("loads the scoring preference on mount", async () => {
+  it("loads the scoring preference on demand", async () => {
     const { result } = renderHook(() => useScoringPreference());
+
+    expect(mockedFetchScoringPreference).not.toHaveBeenCalled();
+    await act(async () => {
+      await result.current.loadScoringPreference();
+    });
 
     await waitFor(() => {
       expect(result.current.scoringPreference).toEqual(scoringPreference);
@@ -64,8 +69,6 @@ describe("useScoringPreference", () => {
 
   it("updates the scoring preference and stores the latest values", async () => {
     const { result } = renderHook(() => useScoringPreference());
-
-    await waitFor(() => expect(mockedFetchScoringPreference).toHaveBeenCalledTimes(1));
 
     let updated;
     await act(async () => {
@@ -83,8 +86,6 @@ describe("useScoringPreference", () => {
 
     const { result } = renderHook(() => useScoringPreference());
 
-    await waitFor(() => expect(mockedFetchScoringPreference).toHaveBeenCalledTimes(1));
-
     await act(async () => {
       await result.current.handleSubmitScoring(payload);
     });
@@ -100,12 +101,17 @@ describe("useScoringPreference", () => {
 
   it("keeps the submitted preference when the initial load resolves later", async () => {
     let resolveInitial!: (value: typeof scoringPreference) => void;
-    const initialLoad = new Promise<typeof scoringPreference>((resolve) => {
+    const initialResponse = new Promise<typeof scoringPreference>((resolve) => {
       resolveInitial = resolve;
     });
-    mockedFetchScoringPreference.mockReturnValueOnce(initialLoad);
+    mockedFetchScoringPreference.mockReturnValueOnce(initialResponse);
 
     const { result } = renderHook(() => useScoringPreference());
+    let initialLoad!: Promise<void>;
+
+    act(() => {
+      initialLoad = result.current.loadScoringPreference();
+    });
 
     await act(async () => {
       await result.current.handleSubmitScoring(payload);
@@ -116,7 +122,7 @@ describe("useScoringPreference", () => {
 
     resolveInitial(scoringPreference);
     await act(async () => {
-      await Promise.resolve();
+      await initialLoad;
     });
 
     expect(result.current.scoringPreference).toEqual(updatedPreference);

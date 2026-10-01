@@ -3,11 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { t } from "../i18n";
 import type { Job, JobFormPayload, MasterDataItem } from "../types/job";
 
-export type JobFormDraft = Omit<JobFormPayload, "position_id" | "location_id" | "salary_min" | "salary_max" | "source_url"> & {
+export type JobFormDraft = Omit<JobFormPayload, "position_id" | "location_id" | "salary_min" | "salary_max" | "source_url" | "work_style"> & {
   position_id: number | "";
   location_id: number | "";
   salary_min: number | "";
   salary_max: number | "";
+  work_style: JobFormPayload["work_style"] | "";
   source_url: string;
   source_text: string;
   company_logo: File | null;
@@ -133,10 +134,10 @@ export function buildFormValues(job: Job | null, draft?: Partial<JobFormPayload>
     company_name: draft.company_name ?? emptyForm.company_name,
     position_id: draft.position_id ?? emptyForm.position_id,
     status: draft.status ?? emptyForm.status,
-    work_style: draft.work_style ?? emptyForm.work_style,
+    work_style: draft.work_style ?? "",
     employment_type: draft.employment_type ?? emptyForm.employment_type,
-    salary_min: typeof draft.salary_min === "number" ? draft.salary_min : emptyForm.salary_min,
-    salary_max: typeof draft.salary_max === "number" ? draft.salary_max : emptyForm.salary_max,
+    salary_min: typeof draft.salary_min === "number" ? draft.salary_min : "",
+    salary_max: typeof draft.salary_max === "number" ? draft.salary_max : "",
     tech_stack_ids: draft.tech_stack_ids ?? emptyForm.tech_stack_ids,
     location_id: draft.location_id ?? emptyForm.location_id,
     notes: draft.notes ?? emptyForm.notes,
@@ -168,6 +169,7 @@ export function summarizeSelectedTechStacks(techStacks: MasterDataItem[], select
 export function toJobFormPayload(values: JobFormDraft): JobFormPayload {
   const payload: JobFormPayload = {
     ...values,
+    work_style: values.work_style as JobFormPayload["work_style"],
     position_id: Number(values.position_id),
     location_id: Number(values.location_id),
     salary_min: Number(values.salary_min),
@@ -192,6 +194,7 @@ function validateFormValues(formValues: JobFormDraft) {
 
   if (!formValues.company_name.trim()) nextErrors.company_name = t("validation.required");
   if (!formValues.position_id) nextErrors.position_id = t("validation.required");
+  if (!formValues.work_style) nextErrors.work_style = t("validation.required");
   if (!formValues.tech_stack_ids.length) nextErrors.tech_stack_ids = t("validation.required");
   if (!formValues.location_id) nextErrors.location_id = t("validation.required");
   if (formValues.salary_min === "") nextErrors.salary_min = t("validation.required");

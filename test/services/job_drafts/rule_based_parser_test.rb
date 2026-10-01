@@ -72,12 +72,48 @@ module JobDrafts
       assert_nil result["salary_max_jpy"]
     end
 
+    test "keeps one-time payments out of the annual salary range" do
+      result = JobDrafts::RuleBasedParser.new(
+        text: "年収500〜700万円、入社祝い金300万円",
+        url: "",
+        masters: @masters
+      ).call
+
+      assert_equal 5_000_000, result["salary_min_jpy"]
+      assert_equal 7_000_000, result["salary_max_jpy"]
+    end
+
+    test "reads comma-grouped annual salaries before one-time payments" do
+      result = JobDrafts::RuleBasedParser.new(
+        text: "年収5,000,000円〜7,000,000円、入社祝い金300万円",
+        url: "",
+        masters: @masters
+      ).call
+
+      assert_equal 5_000_000, result["salary_min_jpy"]
+      assert_equal 7_000_000, result["salary_max_jpy"]
+    end
+
     test "extracts hybrid and onsite work styles from common wording" do
       hybrid = JobDrafts::RuleBasedParser.new(text: "週2日出社、リモート併用です", url: "", masters: @masters).call
       onsite = JobDrafts::RuleBasedParser.new(text: "原則出社勤務・客先常駐の案件です", url: "", masters: @masters).call
 
       assert_equal "hybrid", hybrid["work_style"]
       assert_equal "onsite", onsite["work_style"]
+    end
+
+    test "does not classify negated remote work as full remote" do
+      [ "フルリモート不可", "フルリモートではありません" ].each do |text|
+        result = JobDrafts::RuleBasedParser.new(text: text, url: "", masters: @masters).call
+
+        assert_nil result["work_style"]
+      end
+    end
+
+    test "uses explicit office requirements when remote work is unavailable" do
+      result = JobDrafts::RuleBasedParser.new(text: "フルリモート不可、出社必須", url: "", masters: @masters).call
+
+      assert_equal "onsite", result["work_style"]
     end
 
     test "does not match short technology names inside longer names" do

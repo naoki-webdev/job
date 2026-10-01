@@ -48,6 +48,7 @@ export function useJobImport({ openCreateForm }: UseJobImportParams) {
     const abortController = new AbortController();
     analysisAbortController.current = abortController;
     setImportLoading(true);
+    setImportResult(null);
     setImportError(null);
 
     try {
@@ -71,7 +72,7 @@ export function useJobImport({ openCreateForm }: UseJobImportParams) {
   }, [cancelAnalysis]);
 
   const handleConfirmImport = useCallback(() => {
-    if (!importResult) return;
+    if (!importResult || importLoading) return;
 
     cancelAnalysis();
     const { draft } = importResult;
@@ -88,7 +89,7 @@ export function useJobImport({ openCreateForm }: UseJobImportParams) {
 
     setImportOpen(false);
     openCreateForm(formDraft);
-  }, [cancelAnalysis, importResult, openCreateForm]);
+  }, [cancelAnalysis, importLoading, importResult, openCreateForm]);
 
   useEffect(() => cancelAnalysis, [cancelAnalysis]);
 

@@ -172,6 +172,7 @@ ja:
       position: "職種"
       status: "選考状況"
       work_style: "働き方"
+      unknown_work_style: "選択してください"
       employment_type: "雇用形態"
       salary_min: "年収下限"
       salary_max: "年収上限"

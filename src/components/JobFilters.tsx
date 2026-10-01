@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -51,12 +51,35 @@ function JobFilters({
   onClearFilters,
   onExportCsv,
 }: JobFiltersProps) {
+  const [keywordDraft, setKeywordDraft] = useState(keyword);
+  const keywordTimer = useRef<number | null>(null);
   const activeFilterCount = statuses.length + workStyles.length + (keyword.trim() ? 1 : 0);
   const activeFilterLabels = [
     ...statuses.map((status) => t(`enums.job_status.${status}`)),
     ...workStyles.map((workStyle) => t(`enums.work_style.${workStyle}`)),
     ...(keyword.trim() ? [`「${keyword.trim()}」`] : []),
   ];
+
+  useEffect(() => {
+    setKeywordDraft(keyword);
+    if (keywordTimer.current !== null) {
+      window.clearTimeout(keywordTimer.current);
+      keywordTimer.current = null;
+    }
+  }, [keyword]);
+
+  useEffect(() => () => {
+    if (keywordTimer.current !== null) window.clearTimeout(keywordTimer.current);
+  }, []);
+
+  const handleKeywordInputChange = (value: string) => {
+    setKeywordDraft(value);
+    if (keywordTimer.current !== null) window.clearTimeout(keywordTimer.current);
+    keywordTimer.current = window.setTimeout(() => {
+      onKeywordChange(value);
+      keywordTimer.current = null;
+    }, 300);
+  };
 
   return (
     <Stack spacing={1.25}>
@@ -70,8 +93,8 @@ function JobFilters({
       >
         <TextField
           label={t("filters.keyword")}
-          value={keyword}
-          onChange={(event) => onKeywordChange(event.target.value)}
+          value={keywordDraft}
+          onChange={(event) => handleKeywordInputChange(event.target.value)}
           placeholder={t("filters.keyword_placeholder")}
           size="small"
           sx={{

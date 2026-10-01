@@ -7,10 +7,11 @@ class ApplicationController < ActionController::API
   rescue_from ActionController::ParameterMissing, with: :render_invalid_request
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
 
+  prepend_around_action :log_api_request
+
   before_action :authenticate_user!
   before_action :reject_write_request_for_read_only_user
   before_action :reject_cross_origin_write_request
-  around_action :log_api_request
 
   private
 

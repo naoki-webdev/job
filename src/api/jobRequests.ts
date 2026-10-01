@@ -82,11 +82,24 @@ export async function waitForJobAnalysis(id: number, init?: RequestInit): Promis
         return;
       }
 
-      const timeout = setTimeout(resolve, 500);
-      init?.signal?.addEventListener("abort", () => {
+      const signal = init?.signal;
+      let settled = false;
+      const cleanup = () => signal?.removeEventListener("abort", onAbort);
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve();
+      }, 500);
+      const onAbort = () => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timeout);
+        cleanup();
         reject(new DOMException("The operation was aborted.", "AbortError"));
-      }, { once: true });
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) onAbort();
     });
 
     const job = await fetchJob(id, init);

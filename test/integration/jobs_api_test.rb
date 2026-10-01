@@ -243,7 +243,7 @@ class JobsApiTest < ActionDispatch::IntegrationTest
     analyzer.expect(:validate_input!, true)
     analyzer.expect(:call, analysis)
 
-    assert_enqueued_with(job: AnalyzeJob, args: [ @job1.id, @user.id ]) do
+    assert_enqueued_with(job: AnalyzeJob) do
       post "/api/jobs/#{@job1.id}/analyze", headers: @headers, as: :json
     end
 
@@ -262,6 +262,42 @@ class JobsApiTest < ActionDispatch::IntegrationTest
     assert_equal evaluation.id, JSON.parse(response.body).dig("ai_evaluation", "id")
     assert_equal "completed", JSON.parse(response.body)["ai_analysis_status"]
     assert_equal "job.ai_analyze", ActivityLog.last.action
+  end
+
+  test "returns an error and releases queued status when AI analysis cannot be enqueued" do
+    @user.update!(ai_enabled: true)
+    @job1.update!(source_text: "求人本文")
+
+    AnalyzeJob.stub(:perform_later, ->(*) { raise "queue unavailable" }) do
+      post "/api/jobs/#{@job1.id}/analyze", headers: @headers, as: :json
+    end
+
+    assert_response :service_unavailable
+    assert_equal "JOB_ANALYSIS_ENQUEUE_FAILED", JSON.parse(response.body)["code"]
+    assert_equal "failed", @job1.reload.ai_analysis_status
+    assert @job1.ai_analysis_state_updated_at.present?
+  end
+
+  test "requeues queued or running analysis states without progress for ten minutes" do
+    @user.update!(ai_enabled: true)
+    @job1.update!(source_text: "求人本文")
+    digest = JobAnalysis::Analyzer.input_digest_for(job: @job1, user: @user)
+    %w[queued running].each do |status|
+      @job1.update_columns(
+        ai_analysis_status: status,
+        ai_analysis_input_digest: digest,
+        ai_analysis_state_updated_at: 11.minutes.ago
+      )
+
+      clear_enqueued_jobs
+      assert_enqueued_jobs 1, only: AnalyzeJob do
+        post "/api/jobs/#{@job1.id}/analyze", headers: @headers, as: :json
+      end
+
+      assert_response :accepted
+      assert_equal "queued", @job1.reload.ai_analysis_status
+      assert_operator @job1.ai_analysis_state_updated_at, :>, 1.minute.ago
+    end
   end
 
   test "rejects inactive masters when creating a job" do

@@ -10,9 +10,9 @@ module JobDrafts
     HYBRID_PATTERNS = [
       /ハイブリッド/i,
       /一部リモート/i,
-      /リモート可/i,
-      /リモート勤務可/i,
-      /在宅勤務可/i,
+      /(?<!フル)(?<!完全)リモート可/i,
+      /(?<!フル)(?<!完全)リモート勤務可/i,
+      /(?<!完全)在宅勤務可/i,
       /リモート併用/i,
       /週\s*\d+\s*日?.*出社/i,
       /出社.*週\s*\d+\s*日?/i
@@ -20,6 +20,8 @@ module JobDrafts
     ONSITE_PATTERNS = [
       /原則出社/i,
       /出社前提/i,
+      /出社必須/i,
+      /出社のみ/i,
       /フル出社/i,
       /出社勤務/i,
       /常駐/i,
@@ -61,9 +63,16 @@ module JobDrafts
     end
 
     def salary_pair
-      manyen_matches = @text.scan(/(\d{3,5})\s*万(?:円)?/).map { |m| m.first.to_i }
-      jpy_matches = @text.scan(/(\d{1,3}(?:,\d{3})+)\s*円/).map { |m| m.first.delete(",").to_i / 10_000 }
-      candidates = (manyen_matches + jpy_matches).uniq.select { |v| v.between?(300, 5_000) }
+      salary_text = @text.match(/(?:想定)?年収\s*[:：]?\s*([^\n。;；]*)/i)&.captures&.first
+      return nil unless salary_text
+
+      salary_text = salary_text.split(/、|入社祝い金|祝い金|賞与|諸手当|手当|インセンティブ/, 2).first
+      manyen_matches = salary_text.scan(/(\d{3,5})\s*万(?:円)?/).map { |m| m.first.to_i }
+      manyen_range_matches = salary_text.scan(/(\d{3,5})\s*[〜～~\-−–]\s*(\d{3,5})\s*万(?:円)?/).flat_map do |minimum, maximum|
+        [ minimum.to_i, maximum.to_i ]
+      end
+      jpy_matches = salary_text.scan(/(\d{1,3}(?:,\d{3})+)\s*円/).map { |m| m.first.delete(",").to_i / 10_000 }
+      candidates = (manyen_matches + manyen_range_matches + jpy_matches).uniq.select { |v| v.between?(300, 5_000) }
       return nil if candidates.empty?
 
       sorted = candidates.sort
@@ -71,9 +80,10 @@ module JobDrafts
     end
 
     def extract_work_style
-      return "full_remote" if match_any?(FULL_REMOTE_PATTERNS)
       return "hybrid" if match_any?(HYBRID_PATTERNS)
       return "onsite" if match_any?(ONSITE_PATTERNS)
+      return nil if @text.match?(/(?:フルリモート|完全リモート|完全在宅|リモート勤務?)\s*(?:は|が)?\s*(?:不可|できません|できない|ではありません|ではない|対象外|なし)/i)
+      return "full_remote" if match_any?(FULL_REMOTE_PATTERNS)
 
       nil
     end

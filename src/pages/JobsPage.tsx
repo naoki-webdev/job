@@ -181,6 +181,7 @@ export default function JobsPage() {
             mode={formMode}
             initialJob={formMode === "edit" ? selectedJob : null}
             initialDraft={formMode === "create" ? formInitialDraft : null}
+            loadingOptions={masterData.loading}
             locations={locations}
             positions={positions}
             techStacks={techStacks}
@@ -212,6 +213,7 @@ export default function JobsPage() {
         <Suspense fallback={null}>
           <MasterDataDrawer
             open={masterDataOpen}
+            loading={masterData.loading || scoring.loading}
             locations={locations}
             positions={positions}
             techStacks={techStacks}
