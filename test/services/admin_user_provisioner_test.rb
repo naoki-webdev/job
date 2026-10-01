@@ -34,6 +34,12 @@ class AdminUserProvisionerTest < ActiveSupport::TestCase
     assert user.ai_enabled?
     assert_not user.read_only?
     assert_predicate user.scoring_preference, :present?
+    assert_equal 4, user.positions.count
+    assert_equal 5, user.locations.count
+    assert_equal 8, user.tech_stacks.count
+    assert_equal 4, user.positive_keywords.count
+    assert_equal 3, user.negative_keywords.count
+    assert_equal 3, user.interview_questions.count
   end
 
   test "updates an existing user without creating duplicates" do
@@ -51,5 +57,23 @@ class AdminUserProvisionerTest < ActiveSupport::TestCase
     assert user.authenticate("new-password")
     assert user.ai_enabled?
     assert_not user.read_only?
+    assert_equal 4, user.positions.count
+    assert_equal 8, user.tech_stacks.count
+  end
+
+  test "preserves customized master data while filling an incomplete setup" do
+    user = create_user(email: "admin@example.com", password: "old-password")
+    user.positions.create!(name: "独自の職種", score_weight: 99, active: true, display_order: 0)
+    user.tech_stacks.create!(name: "独自の技術", score_weight: 99, active: true, display_order: 0)
+    ENV["ADMIN_USER_EMAIL"] = "admin@example.com"
+    ENV["ADMIN_USER_PASSWORD"] = "new-password"
+
+    assert_equal :provisioned, AdminUserProvisioner.call
+
+    assert_equal 99, user.positions.find_by!(name: "独自の職種").score_weight
+    assert_equal 99, user.tech_stacks.find_by!(name: "独自の技術").score_weight
+    assert_equal 5, user.positions.count
+    assert_equal 5, user.locations.count
+    assert_equal 9, user.tech_stacks.count
   end
 end

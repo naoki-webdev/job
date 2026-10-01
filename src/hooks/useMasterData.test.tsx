@@ -103,6 +103,23 @@ afterEach(() => {
 });
 
 describe("useMasterData", () => {
+  it("loads only the master data needed by the job form", async () => {
+    const { result } = renderHook(() => useMasterData());
+
+    await act(async () => { await result.current.loadFormMasters(); });
+
+    expect(result.current.locations).toEqual(locationItems);
+    expect(result.current.positions).toEqual(positionItems);
+    expect(result.current.techStacks).toEqual(techStackItems);
+    expect(mockedFetchLocations).toHaveBeenCalledTimes(1);
+    expect(mockedFetchPositions).toHaveBeenCalledTimes(1);
+    expect(mockedFetchTechStacks).toHaveBeenCalledTimes(1);
+    expect(mockedFetchPositiveKeywords).not.toHaveBeenCalled();
+    expect(mockedFetchNegativeKeywords).not.toHaveBeenCalled();
+    expect(mockedFetchInterviewQuestions).not.toHaveBeenCalled();
+    expect(result.current.loadingFormMasters).toBe(false);
+  });
+
   it("loads all master data on demand", async () => {
     const { result } = renderHook(() => useMasterData());
 

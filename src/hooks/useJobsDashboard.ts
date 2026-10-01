@@ -16,13 +16,13 @@ export function useJobsDashboard() {
   const masterData = useMasterData();
   const scoring = useScoringPreference();
   const handleOpenCreateForm = useCallback((draft: Parameters<typeof jobsList.handleOpenCreateForm>[0] = null) => {
-    void masterData.loadMasters();
+    void masterData.loadFormMasters();
     jobsList.handleOpenCreateForm(draft);
-  }, [jobsList.handleOpenCreateForm, masterData.loadMasters]);
+  }, [jobsList.handleOpenCreateForm, masterData.loadFormMasters]);
   const handleOpenEditForm = useCallback(() => {
-    void masterData.loadMasters();
+    void masterData.loadFormMasters();
     jobsList.handleOpenEditForm();
-  }, [jobsList.handleOpenEditForm, masterData.loadMasters]);
+  }, [jobsList.handleOpenEditForm, masterData.loadFormMasters]);
   const jobImport = useJobImport({ openCreateForm: handleOpenCreateForm });
   const [demoStateApplied, setDemoStateApplied] = useState(false);
   const {
@@ -229,6 +229,7 @@ export function useJobsDashboard() {
       interviewQuestions: masterData.interviewQuestions,
       open: masterData.masterDataOpen,
       loading: masterData.loadingMasters,
+      loadingForm: masterData.loadingFormMasters,
       submitting: masterData.submittingMasterData,
       error: masterData.masterDataError,
     },

@@ -47,6 +47,7 @@ export function useMasterData() {
   const [interviewQuestions, setInterviewQuestions] = useState<InterviewQuestionItem[]>([]);
   const [masterDataOpen, setMasterDataOpen] = useState(false);
   const [loadingMasters, setLoadingMasters] = useState(false);
+  const [loadingFormMasters, setLoadingFormMasters] = useState(false);
   const [submittingMasterData, setSubmittingMasterData] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [masterDataError, setMasterDataError] = useState<string | null>(null);
@@ -54,6 +55,10 @@ export function useMasterData() {
   const loadAbortController = useRef<AbortController | null>(null);
   const mastersLoaded = useRef(false);
   const loadPromise = useRef<Promise<void> | null>(null);
+  const formLoadRequestSequence = useRef(0);
+  const formLoadAbortController = useRef<AbortController | null>(null);
+  const formMastersLoaded = useRef(false);
+  const formLoadPromise = useRef<Promise<void> | null>(null);
 
   const cancelLoad = useCallback(() => {
     loadRequestSequence.current += 1;
@@ -61,12 +66,71 @@ export function useMasterData() {
     loadAbortController.current = null;
   }, []);
 
+  const cancelFormLoad = useCallback(() => {
+    formLoadRequestSequence.current += 1;
+    formLoadAbortController.current?.abort();
+    formLoadAbortController.current = null;
+    formLoadPromise.current = null;
+  }, []);
+
+  const loadFormMasters = useCallback(async () => {
+    if (mastersLoaded.current || formMastersLoaded.current) return;
+    if (loadPromise.current) {
+      setLoadingFormMasters(true);
+      return loadPromise.current.finally(() => setLoadingFormMasters(false));
+    }
+    if (formLoadPromise.current) return formLoadPromise.current;
+
+    cancelFormLoad();
+    const requestSequence = formLoadRequestSequence.current;
+    const abortController = new AbortController();
+    formLoadAbortController.current = abortController;
+    setLoadError(null);
+    setLoadingFormMasters(true);
+
+    const currentLoad = (async () => {
+      try {
+        const [locationItems, positionItems, techStackItems] = await retry(
+          () => Promise.all([
+            fetchLocations({ signal: abortController.signal }),
+            fetchPositions({ signal: abortController.signal }),
+            fetchTechStacks({ signal: abortController.signal }),
+          ]),
+          { shouldRetry: isRetryableError },
+        );
+        if (requestSequence !== formLoadRequestSequence.current || abortController.signal.aborted) return;
+
+        setLocations(locationItems);
+        setPositions(positionItems);
+        setTechStacks(techStackItems);
+        formMastersLoaded.current = true;
+      } catch (error) {
+        if (requestSequence !== formLoadRequestSequence.current || isAbortError(error)) return;
+
+        setLoadError(t("errors.fetch_master_data"));
+      } finally {
+        if (requestSequence === formLoadRequestSequence.current) {
+          formLoadAbortController.current = null;
+          formLoadPromise.current = null;
+          setLoadingFormMasters(false);
+        }
+      }
+    })();
+    formLoadPromise.current = currentLoad;
+    return currentLoad;
+  }, [cancelFormLoad]);
+
   const loadMasters = useCallback(async (force = false) => {
     if (mastersLoaded.current && !force) return;
     if (loadPromise.current && !force) return loadPromise.current;
     const shouldShowLoading = force || !mastersLoaded.current;
-    if (force) mastersLoaded.current = false;
+    if (force) {
+      mastersLoaded.current = false;
+      formMastersLoaded.current = false;
+    }
 
+    cancelFormLoad();
+    setLoadingFormMasters(false);
     cancelLoad();
     const requestSequence = loadRequestSequence.current;
     const abortController = new AbortController();
@@ -104,6 +168,7 @@ export function useMasterData() {
         setNegativeKeywords(negativeKeywordItems);
         setInterviewQuestions(interviewQuestionItems);
         mastersLoaded.current = true;
+        formMastersLoaded.current = true;
       } catch (error) {
         if (requestSequence !== loadRequestSequence.current || isAbortError(error)) return;
 
@@ -118,11 +183,14 @@ export function useMasterData() {
     })();
     loadPromise.current = currentLoad;
     return currentLoad;
-  }, [cancelLoad]);
+  }, [cancelFormLoad, cancelLoad]);
 
   useEffect(() => {
-    return cancelLoad;
-  }, [cancelLoad]);
+    return () => {
+      cancelLoad();
+      cancelFormLoad();
+    };
+  }, [cancelFormLoad, cancelLoad]);
 
   const handleOpenMasterData = useCallback(() => {
     setMasterDataError(null);
@@ -248,9 +316,11 @@ export function useMasterData() {
     interviewQuestions,
     masterDataOpen,
     loadingMasters,
+    loadingFormMasters,
     submittingMasterData,
     loadError,
     masterDataError,
+    loadFormMasters,
     loadMasters,
     handleOpenMasterData,
     handleCloseMasterData,

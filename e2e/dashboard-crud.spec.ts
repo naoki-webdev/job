@@ -78,6 +78,7 @@ ${companyName}
     await expect(formDrawer.getByLabel("勤務地")).toContainText("東京");
 
     await selectOptionByLabel(formDrawer, page, "職種", "フルスタックエンジニア");
+    await selectOptionByLabel(formDrawer, page, "働き方", "フルリモート");
     await formDrawer.getByRole("button", { name: "保存" }).click();
 
     await expect(formDrawer).not.toBeVisible();

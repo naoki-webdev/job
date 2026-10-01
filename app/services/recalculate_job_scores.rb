@@ -1,4 +1,6 @@
 class RecalculateJobScores
+  BATCH_SIZE = 500
+
   def self.call(job_ids: nil, user_id: nil)
     new(job_ids: job_ids, user_id: user_id).call
   end
@@ -13,9 +15,12 @@ class RecalculateJobScores
       lock_users!
       preferences = scoring_preferences
 
-      scope.find_each do |job|
-        preference = preferences.fetch(job.user_id) { ScoringPreference.new(user_id: job.user_id) }
-        job.update_column(:score, JobScoreCalculator.call(job, preference: preference))
+      scope.find_in_batches(batch_size: BATCH_SIZE) do |jobs|
+        scores = jobs.map do |job|
+          preference = preferences.fetch(job.user_id) { ScoringPreference.new(user_id: job.user_id) }
+          [ job.id, JobScoreCalculator.call(job, preference: preference) ]
+        end
+        update_scores(scores)
       end
     end
   end
@@ -51,5 +56,14 @@ class RecalculateJobScores
 
   def lock_users!
     affected_user_ids.each { |id| User.lock.find(id) }
+  end
+
+  def update_scores(scores)
+    return if scores.empty?
+
+    case_expression = scores.reduce(Arel::Nodes::Case.new(Job.arel_table[:id])) do |expression, (id, score)|
+      expression.when(id).then(score)
+    end
+    base_scope.where(id: scores.map(&:first)).update_all(score: case_expression)
   end
 end

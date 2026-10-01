@@ -18,6 +18,7 @@ class AdminUserProvisioner
     )
     user.save!
     ScoringPreference.current(user: user)
+    provision_default_master_data(user)
 
     Rails.logger.info("[AdminUserProvisioner] admin user provisioned: #{user.email}")
     :provisioned
@@ -35,5 +36,11 @@ class AdminUserProvisioner
 
   def name
     ENV["ADMIN_USER_NAME"].to_s.strip
+  end
+
+  def provision_default_master_data(user)
+    return if user.positions.exists? && user.locations.exists? && user.tech_stacks.exists?
+
+    DefaultMasterDataProvisioner.call(user: user)
   end
 end

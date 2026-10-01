@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import JobFilters from "./JobFilters";
@@ -60,6 +60,34 @@ describe("JobFilters", () => {
 
     await user.click(screen.getByText("絞り込みをクリア"));
     expect(onClearFilters).toHaveBeenCalledOnce();
+  });
+
+  it("cancels a pending keyword update when filters are cleared", () => {
+    vi.useFakeTimers();
+    const onKeywordChange = vi.fn();
+    const onClearFilters = vi.fn();
+
+    try {
+      render(
+        <JobFilters
+          {...defaultProps}
+          statuses={["interested"]}
+          onKeywordChange={onKeywordChange}
+          onClearFilters={onClearFilters}
+        />,
+      );
+      const keywordInput = screen.getByRole("textbox", { name: "キーワード" });
+
+      fireEvent.change(keywordInput, { target: { value: "Rails" } });
+      fireEvent.click(screen.getByRole("button", { name: "絞り込みをクリア" }));
+      act(() => { vi.advanceTimersByTime(300); });
+
+      expect(keywordInput).toHaveValue("");
+      expect(onKeywordChange).not.toHaveBeenCalled();
+      expect(onClearFilters).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("calls onExportCsv when the export button is clicked", async () => {

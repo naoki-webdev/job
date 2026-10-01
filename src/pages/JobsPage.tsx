@@ -181,7 +181,7 @@ export default function JobsPage() {
             mode={formMode}
             initialJob={formMode === "edit" ? selectedJob : null}
             initialDraft={formMode === "create" ? formInitialDraft : null}
-            loadingOptions={masterData.loading}
+            loadingOptions={masterData.loadingForm}
             locations={locations}
             positions={positions}
             techStacks={techStacks}

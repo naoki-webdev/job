@@ -81,6 +81,15 @@ function JobFilters({
     }, 300);
   };
 
+  const handleClearFilters = () => {
+    if (keywordTimer.current !== null) {
+      window.clearTimeout(keywordTimer.current);
+      keywordTimer.current = null;
+    }
+    setKeywordDraft("");
+    onClearFilters();
+  };
+
   return (
     <Stack spacing={1.25}>
       <Box
@@ -154,7 +163,7 @@ function JobFilters({
           sx={{ flexWrap: "nowrap", whiteSpace: "nowrap" }}
         >
           {activeFilterCount > 0 && (
-            <Button variant="text" onClick={onClearFilters}>
+            <Button variant="text" onClick={handleClearFilters}>
               {t("actions.clear_filters")}
             </Button>
           )}

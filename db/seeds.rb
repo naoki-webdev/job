@@ -9,32 +9,6 @@ if Rails.env.production? && ENV["DEMO_USER_PASSWORD"].blank?
   raise "DEMO_USER_PASSWORD must be set before seeding production"
 end
 
-position_definitions = [
-  { name: "バックエンドエンジニア", score_weight: 8, display_order: 0 },
-  { name: "フロントエンドエンジニア", score_weight: 5, display_order: 1 },
-  { name: "フルスタックエンジニア", score_weight: 10, display_order: 2 },
-  { name: "テックリード", score_weight: 15, display_order: 3 }
-]
-
-tech_stack_definitions = [
-  { name: "Ruby on Rails", score_weight: 20, display_order: 0 },
-  { name: "TypeScript", score_weight: 15, display_order: 1 },
-  { name: "React", score_weight: 8, display_order: 2 },
-  { name: "Go", score_weight: 6, display_order: 3 },
-  { name: "Vue.js", score_weight: 5, display_order: 4 },
-  { name: "Spring Boot", score_weight: 4, display_order: 5 },
-  { name: "Python", score_weight: 4, display_order: 6 },
-  { name: "Django", score_weight: 4, display_order: 7 }
-]
-
-location_definitions = [
-  { name: "東京", score_weight: 6, display_order: 0 },
-  { name: "大阪", score_weight: 4, display_order: 1 },
-  { name: "福岡", score_weight: 3, display_order: 2 },
-  { name: "名古屋", score_weight: 2, display_order: 3 },
-  { name: "リモート", score_weight: 12, display_order: 4 }
-]
-
 job_stack_sets = [
   [ "Ruby on Rails", "TypeScript", "React" ],
   [ "Go", "React", "TypeScript" ],
@@ -42,13 +16,6 @@ job_stack_sets = [
   [ "Spring Boot", "React" ],
   [ "Python", "Django", "TypeScript" ]
 ]
-
-upsert = lambda do |scope, attributes, key|
-  record = scope.find_or_initialize_by(key => attributes.fetch(key))
-  record.assign_attributes(attributes)
-  record.save!
-  record
-end
 
 demo_user = User.find_or_initialize_by(email: demo_email)
 demo_user.assign_attributes(
@@ -78,19 +45,7 @@ e2e_user =
   end
 
 masters_by_user = [ demo_user, e2e_user ].compact.to_h do |owner|
-  locations = location_definitions.map do |attributes|
-    upsert.call(owner.locations, attributes.merge(active: true), :name)
-  end
-
-  positions = position_definitions.map do |attributes|
-    upsert.call(owner.positions, attributes.merge(active: true), :name)
-  end
-
-  tech_stacks = tech_stack_definitions.map do |attributes|
-    upsert.call(owner.tech_stacks, attributes.merge(active: true), :name)
-  end.index_by(&:name)
-
-  [ owner, { locations: locations, positions: positions, tech_stacks: tech_stacks } ]
+  [ owner, DefaultMasterDataProvisioner.call(user: owner, update_existing: true) ]
 end
 
 ScoringPreference.current(user: demo_user).update!(
@@ -105,31 +60,6 @@ ScoringPreference.current(user: demo_user).update!(
 
 [ demo_user, e2e_user ].compact.each do |owner|
   masters = masters_by_user.fetch(owner)
-
-  [
-    { pattern: "フルリモート", label: "リモート前提で働ける", display_order: 0 },
-    { pattern: "React", label: "React を使う開発", display_order: 1 },
-    { pattern: "TypeScript", label: "TypeScript を使う開発", display_order: 2 },
-    { pattern: "自社サービス", label: "自社サービス開発", display_order: 3 }
-  ].each do |attributes|
-    upsert.call(owner.positive_keywords, attributes.merge(active: true), :pattern)
-  end
-
-  [
-    { pattern: "業務範囲", label: "業務範囲を確認", display_order: 0 },
-    { pattern: "チーム体制", label: "チーム体制を確認", display_order: 1 },
-    { pattern: "評価制度", label: "評価制度を確認", display_order: 2 }
-  ].each do |attributes|
-    upsert.call(owner.negative_keywords, attributes.merge(active: true), :pattern)
-  end
-
-  [
-    { body: "チーム体制と役割分担", display_order: 0 },
-    { body: "オンボーディングの流れ", display_order: 1 },
-    { body: "評価制度と期待値", display_order: 2 }
-  ].each do |attributes|
-    upsert.call(owner.interview_questions, attributes.merge(active: true), :body)
-  end
 
   40.times do |i|
     salary_min = 4_500_000 + (i % 8) * 400_000

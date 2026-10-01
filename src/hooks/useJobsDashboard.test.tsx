@@ -76,9 +76,11 @@ function buildMasterDataMock(overrides = {}) {
     interviewQuestions: [],
     masterDataOpen: false,
     loadingMasters: true,
+    loadingFormMasters: false,
     submittingMasterData: false,
     loadError: null,
     masterDataError: null,
+    loadFormMasters: vi.fn().mockResolvedValue(undefined),
     loadMasters: vi.fn().mockResolvedValue(undefined),
     handleOpenMasterData: vi.fn(),
     handleCloseMasterData: vi.fn(),
@@ -124,6 +126,37 @@ afterEach(() => {
 });
 
 describe("useJobsDashboard", () => {
+  it("loads only form master data when opening a job form", async () => {
+    const jobsList = buildJobsListMock();
+    const masterData = buildMasterDataMock();
+    mockedUseJobsList.mockReturnValue(jobsList);
+    mockedUseMasterData.mockReturnValue(masterData);
+    mockedUseScoringPreference.mockReturnValue(buildScoringMock());
+
+    const { result } = renderHook(() => useJobsDashboard());
+
+    act(() => { result.current.actions.handleOpenCreateForm(); });
+
+    expect(masterData.loadFormMasters).toHaveBeenCalledOnce();
+    expect(masterData.loadMasters).not.toHaveBeenCalled();
+    expect(jobsList.handleOpenCreateForm).toHaveBeenCalledOnce();
+  });
+
+  it("loads all master data when opening settings", () => {
+    const masterData = buildMasterDataMock();
+    const scoring = buildScoringMock();
+    mockedUseJobsList.mockReturnValue(buildJobsListMock());
+    mockedUseMasterData.mockReturnValue(masterData);
+    mockedUseScoringPreference.mockReturnValue(scoring);
+
+    const { result } = renderHook(() => useJobsDashboard());
+
+    act(() => { result.current.actions.handleOpenMasterData(); });
+
+    expect(masterData.loadMasters).toHaveBeenCalledOnce();
+    expect(scoring.loadScoringPreference).toHaveBeenCalledOnce();
+  });
+
   it("loads jobs on the initial render", async () => {
     const jobsList = buildJobsListMock();
 
