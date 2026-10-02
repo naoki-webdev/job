@@ -29,6 +29,7 @@ export {
   updateScoringPreference,
 } from "./scoringPreferences";
 export {
+  backfillDefaultMasterData,
   createInterviewQuestion,
   createLocation,
   createNegativeKeyword,

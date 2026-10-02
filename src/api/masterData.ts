@@ -50,6 +50,10 @@ function deleteMasterData(resource: MasterDataResource, id: number): Promise<voi
   return requestVoid(masterDataUrl(resource, id), { method: "DELETE" });
 }
 
+export function backfillDefaultMasterData(): Promise<void> {
+  return requestVoid(`${API_BASE_URL}/api/admin/master_data_backfill`, { method: "POST" });
+}
+
 function fetchEvaluationKeywords(resource: MasterDataResource, init?: RequestInit): Promise<EvaluationKeywordItem[]> {
   return requestJson<EvaluationKeywordItem[]>(masterDataUrl(resource), init);
 }

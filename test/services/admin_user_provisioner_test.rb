@@ -40,6 +40,7 @@ class AdminUserProvisionerTest < ActiveSupport::TestCase
     assert_equal 4, user.positive_keywords.count
     assert_equal 3, user.negative_keywords.count
     assert_equal 3, user.interview_questions.count
+    assert_predicate user.default_master_data_initialized_at, :present?
   end
 
   test "updates an existing user without creating duplicates" do
@@ -57,11 +58,16 @@ class AdminUserProvisionerTest < ActiveSupport::TestCase
     assert user.authenticate("new-password")
     assert user.ai_enabled?
     assert_not user.read_only?
-    assert_equal 4, user.positions.count
-    assert_equal 8, user.tech_stacks.count
+    assert_equal 0, user.positions.count
+    assert_equal 0, user.tech_stacks.count
+    assert_equal 0, user.locations.count
+    assert_equal 0, user.positive_keywords.count
+    assert_equal 0, user.negative_keywords.count
+    assert_equal 0, user.interview_questions.count
+    assert_nil user.default_master_data_initialized_at
   end
 
-  test "preserves customized master data while filling an incomplete setup" do
+  test "backfills missing defaults explicitly without overwriting customized master data" do
     user = create_user(email: "admin@example.com", password: "old-password")
     user.positions.create!(name: "独自の職種", score_weight: 99, active: true, display_order: 0)
     user.tech_stacks.create!(name: "独自の技術", score_weight: 99, active: true, display_order: 0)
@@ -69,6 +75,11 @@ class AdminUserProvisionerTest < ActiveSupport::TestCase
     ENV["ADMIN_USER_PASSWORD"] = "new-password"
 
     assert_equal :provisioned, AdminUserProvisioner.call
+    assert_equal 1, user.positions.count
+    assert_equal 0, user.locations.count
+    assert_equal 1, user.tech_stacks.count
+
+    DefaultMasterDataProvisioner.call(user: user)
 
     assert_equal 99, user.positions.find_by!(name: "独自の職種").score_weight
     assert_equal 99, user.tech_stacks.find_by!(name: "独自の技術").score_weight

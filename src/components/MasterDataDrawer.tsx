@@ -1,5 +1,6 @@
 import { memo, useEffect, useState } from "react";
 
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Drawer from "@mui/material/Drawer";
@@ -7,6 +8,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 import PageLoader from "./PageLoader";
+import { backfillDefaultMasterData, getApiErrorMessage } from "../api/jobs";
 import { t } from "../i18n";
 import type {
   EvaluationKeywordItem,
@@ -35,6 +37,7 @@ import ScoringRuleSection from "./ScoringRuleSection";
 
 type MasterDataDrawerProps = {
   open: boolean;
+  canBackfillDefaultMasterData?: boolean;
   loading?: boolean;
   preference: ScoringPreference | null;
   locations: MasterDataItem[];
@@ -71,6 +74,7 @@ type MasterDataDrawerProps = {
 
 function MasterDataDrawer({
   open,
+  canBackfillDefaultMasterData = false,
   loading = false,
   preference,
   locations,
@@ -111,6 +115,8 @@ function MasterDataDrawer({
   const [newNegativeKeyword, setNewNegativeKeyword] = useState<EvaluationKeywordDraft>(emptyEvaluationKeyword);
   const [newInterviewQuestion, setNewInterviewQuestion] = useState<InterviewQuestionDraft>(emptyInterviewQuestion);
   const [scoringValues, setScoringValues] = useState<ScoringPreferenceDraft>(emptyScoringValues);
+  const [backfillingDefaultMasterData, setBackfillingDefaultMasterData] = useState(false);
+  const [defaultMasterDataBackfillError, setDefaultMasterDataBackfillError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -149,6 +155,22 @@ function MasterDataDrawer({
     setScoringValues((prev) => ({ ...prev, [key]: value }));
   };
 
+  const handleBackfillDefaultMasterData = async () => {
+    if (!window.confirm(t("settings.default_master_data_backfill_confirm"))) return;
+
+    setBackfillingDefaultMasterData(true);
+    setDefaultMasterDataBackfillError(null);
+    try {
+      await backfillDefaultMasterData();
+      window.location.reload();
+    } catch (error) {
+      setDefaultMasterDataBackfillError(
+        getApiErrorMessage(error, t("settings.default_master_data_backfill_error")),
+      );
+      setBackfillingDefaultMasterData(false);
+    }
+  };
+
   return (
     <Drawer
       anchor="right"
@@ -178,6 +200,29 @@ function MasterDataDrawer({
                 {t("settings.title")}
               </Typography>
             </Box>
+
+            {canBackfillDefaultMasterData && (
+              <Alert
+                severity="warning"
+                action={(
+                  <Button
+                    color="inherit"
+                    size="small"
+                    disabled={backfillingDefaultMasterData}
+                    onClick={() => void handleBackfillDefaultMasterData()}
+                  >
+                    {backfillingDefaultMasterData
+                      ? t("settings.default_master_data_backfilling")
+                      : t("settings.default_master_data_backfill")}
+                  </Button>
+                )}
+              >
+                {t("settings.default_master_data_backfill_notice")}
+              </Alert>
+            )}
+            {defaultMasterDataBackfillError && (
+              <Alert severity="error">{defaultMasterDataBackfillError}</Alert>
+            )}
 
             <ScoringRuleSection
               values={scoringValues}

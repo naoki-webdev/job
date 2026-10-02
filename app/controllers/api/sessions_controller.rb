@@ -40,9 +40,15 @@ module Api
           name: user.name,
           email: user.email,
           read_only: user.read_only?,
-          ai_enabled: user.ai_enabled?
+          ai_enabled: user.ai_enabled?,
+          can_backfill_default_master_data: configured_admin?(user) && user.default_master_data_initialized_at.nil?
         }
       }
+    end
+
+    def configured_admin?(user)
+      admin_email = ENV["ADMIN_USER_EMAIL"].to_s.strip.downcase
+      admin_email.present? && user.email == admin_email
     end
 
     def write_session_cookie(token)

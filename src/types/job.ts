@@ -217,6 +217,7 @@ export type AuthUser = {
   email: string;
   read_only: boolean;
   ai_enabled: boolean;
+  can_backfill_default_master_data?: boolean;
 };
 
 export type SessionResponse = {

@@ -3,6 +3,7 @@ Rails.application.routes.draw do
 
   namespace :api do
     resource :session, only: [ :show, :create, :destroy ]
+    post "admin/master_data_backfill", to: "admin_master_data_backfills#create"
     get "jobs/export", to: "jobs#export"
     resources :job_drafts, only: [ :create ]
     resource :scoring_preference, only: [ :show, :update ]

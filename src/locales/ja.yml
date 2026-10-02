@@ -203,6 +203,11 @@ ja:
     low_salary_penalty: "低年収の減点"
   settings:
     title: "スコア設定"
+    default_master_data_backfill: "初期マスターを補完"
+    default_master_data_backfilling: "補完中..."
+    default_master_data_backfill_notice: "実行すると、削除済みの既定マスターも再登録されます。"
+    default_master_data_backfill_confirm: "不足している既定マスターを追加します。削除済みの既定データも再登録されます。実行しますか？"
+    default_master_data_backfill_error: "初期マスターの補完に失敗しました。"
     rules_title: "働き方・年収"
     rules_helper: "求人スコアに加算・減算する値です。"
     items_title: "比較項目"

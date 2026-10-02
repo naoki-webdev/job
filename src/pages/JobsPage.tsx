@@ -213,6 +213,7 @@ export default function JobsPage() {
         <Suspense fallback={null}>
           <MasterDataDrawer
             open={masterDataOpen}
+            canBackfillDefaultMasterData={user?.can_backfill_default_master_data ?? false}
             loading={masterData.loading || scoring.loading}
             locations={locations}
             positions={positions}

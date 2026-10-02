@@ -9,16 +9,23 @@ class AdminUserProvisioner
     return :skipped unless email.present? && password.present?
 
     user = User.find_or_initialize_by(email: email)
-    user.assign_attributes(
-      name: name.presence || user.name.presence || DEFAULT_NAME,
-      password: password,
-      password_confirmation: password,
-      read_only: false,
-      ai_enabled: true
-    )
-    user.save!
-    ScoringPreference.current(user: user)
-    provision_default_master_data(user)
+    new_user = user.new_record?
+
+    User.transaction do
+      user.assign_attributes(
+        name: name.presence || user.name.presence || DEFAULT_NAME,
+        password: password,
+        password_confirmation: password,
+        read_only: false,
+        ai_enabled: true
+      )
+      user.save!
+      ScoringPreference.current(user: user)
+      if new_user
+        DefaultMasterDataProvisioner.call(user: user)
+        user.update!(default_master_data_initialized_at: Time.current)
+      end
+    end
 
     Rails.logger.info("[AdminUserProvisioner] admin user provisioned: #{user.email}")
     :provisioned
@@ -36,11 +43,5 @@ class AdminUserProvisioner
 
   def name
     ENV["ADMIN_USER_NAME"].to_s.strip
-  end
-
-  def provision_default_master_data(user)
-    return if user.positions.exists? && user.locations.exists? && user.tech_stacks.exists?
-
-    DefaultMasterDataProvisioner.call(user: user)
   end
 end
