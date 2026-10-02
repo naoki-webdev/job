@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -10,6 +10,7 @@ import Typography from "@mui/material/Typography";
 import PageLoader from "./PageLoader";
 import { backfillDefaultMasterData, getApiErrorMessage } from "../api/jobs";
 import { t } from "../i18n";
+import { scrollToFirstInvalidField } from "../utils/formValidation";
 import type {
   EvaluationKeywordItem,
   EvaluationKeywordPayload,
@@ -26,7 +27,6 @@ import {
   emptyInterviewQuestion,
   emptyMasterData,
   emptyScoringValues,
-  hasEmptyScoringField,
   type EvaluationKeywordDraft,
   type InterviewQuestionDraft,
   type MasterDataDraft,
@@ -117,9 +117,16 @@ function MasterDataDrawer({
   const [scoringValues, setScoringValues] = useState<ScoringPreferenceDraft>(emptyScoringValues);
   const [backfillingDefaultMasterData, setBackfillingDefaultMasterData] = useState(false);
   const [defaultMasterDataBackfillError, setDefaultMasterDataBackfillError] = useState<string | null>(null);
+  const [scoringSubmitAttempt, setScoringSubmitAttempt] = useState(0);
+  const scoringFieldsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scoringSubmitAttempt > 0) scrollToFirstInvalidField(scoringFieldsRef.current);
+  }, [scoringSubmitAttempt]);
 
   useEffect(() => {
     if (open) {
+      setScoringSubmitAttempt(0);
       setNewLocation({ ...emptyMasterData, display_order: locations.length });
       setNewPosition({ ...emptyMasterData, display_order: positions.length });
       setNewTechStack({ ...emptyMasterData, display_order: techStacks.length });
@@ -224,13 +231,17 @@ function MasterDataDrawer({
               <Alert severity="error">{defaultMasterDataBackfillError}</Alert>
             )}
 
-            <ScoringRuleSection
-              values={scoringValues}
-              error={scoringError}
-              onChange={handleScoringChange}
-            />
+            <Box ref={scoringFieldsRef}>
+              <ScoringRuleSection
+                values={scoringValues}
+                error={scoringError}
+                showValidationErrors={scoringSubmitAttempt > 0}
+                onChange={handleScoringChange}
+              />
+            </Box>
 
             <MasterDataDrawerSections
+              key={open ? "open" : "closed"}
               locations={locations}
               positions={positions}
               techStacks={techStacks}
@@ -310,11 +321,12 @@ function MasterDataDrawer({
             <Button
               variant="contained"
               onClick={() => {
+                setScoringSubmitAttempt((attempt) => attempt + 1);
                 const payload = toScoringPreferencePayload(scoringValues);
                 if (!payload) return;
                 void onSubmitScoring(payload);
               }}
-              disabled={loading || submittingScoring || hasEmptyScoringField(scoringValues)}
+              disabled={loading || submittingScoring}
             >
               {submittingScoring ? t("actions.saving") : t("actions.save_scoring")}
             </Button>

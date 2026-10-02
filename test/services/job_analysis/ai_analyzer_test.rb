@@ -18,6 +18,8 @@ module JobAnalysis
       assert_includes user_prompt, "END_JOB_TEXT_LITERAL"
       assert_equal "application/json", payload.dig(:generationConfig, :responseMimeType)
       assert_equal "OBJECT", payload.dig(:generationConfig, :responseSchema, :type)
+      assert_equal "medium", payload.dig(:generationConfig, :thinkingConfig, :thinkingLevel)
+      assert_nil payload.dig(:generationConfig, :temperature)
     end
   end
 end

@@ -104,9 +104,9 @@ describe("MasterDataDrawer", () => {
 
     render(<MasterDataDrawer {...defaultProps} onCreateLocation={onCreateLocation} />);
 
-    const locationNameInputs = screen.getAllByLabelText("勤務地名");
-    const weightInputs = screen.getAllByLabelText("配点");
-    const orderInputs = screen.getAllByLabelText("表示順");
+    const locationNameInputs = screen.getAllByLabelText(/^勤務地名/);
+    const weightInputs = screen.getAllByLabelText(/^配点/);
+    const orderInputs = screen.getAllByLabelText(/^表示順/);
 
     await user.clear(locationNameInputs[1]);
     await user.type(locationNameInputs[1], "大阪");
@@ -155,9 +155,9 @@ describe("MasterDataDrawer", () => {
 
     render(<MasterDataDrawer {...defaultProps} onCreatePositiveKeyword={onCreatePositiveKeyword} />);
 
-    const patternInput = screen.getAllByLabelText("判定キーワード")
+    const patternInput = screen.getAllByLabelText(/^判定キーワード/)
       .find((input) => (input as HTMLInputElement).value === "");
-    const labelInput = screen.getAllByLabelText("表示ラベル")
+    const labelInput = screen.getAllByLabelText(/^表示ラベル/)
       .find((input) => (input as HTMLInputElement).value === "");
 
     if (!patternInput || !labelInput) {

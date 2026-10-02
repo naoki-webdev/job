@@ -1,5 +1,12 @@
 module JobDrafts
   class RuleBasedParser
+    COMPANY_LABEL_PATTERN = /\A[>#*\s]*(?:会社名|企業名|募集企業)\s*[:：]\s*([^\n]+)/
+    COMPANY_NAME_PATTERN = /\A(?:
+      (?:株式会社|有限会社|合同会社|合資会社|合名会社)[\p{Han}\p{Hiragana}\p{Katakana}A-Za-z0-9・＆&._ -]{1,32}
+      |
+      [\p{Han}\p{Hiragana}\p{Katakana}A-Za-z0-9・＆&._ -]{1,32}?(?:株式会社|有限会社|合同会社|合資会社|合名会社)
+    )\z/x
+    COMPANY_SECTION_PATTERN = /\A(?:\#{1,6}\s*)?(?:仕事内容|事業内容|業務内容|募集背景|応募要件|応募条件|応募資格|募集している求人|待遇|福利厚生|休日・休暇|選考プロセス)/
     FULL_REMOTE_PATTERNS = [
       /フルリモート/i,
       /完全リモート/i,
@@ -56,10 +63,34 @@ module JobDrafts
     private
 
     def extract_company_name
-      first_line = @text.each_line.map(&:strip).find { |line| line.length.positive? }
-      return nil unless first_line
+      lines = @text.each_line.map(&:strip).reject(&:blank?)
+      opening_lines = lines.take_while { |line| !line.match?(COMPANY_SECTION_PATTERN) }.first(80)
+      labeled_name = opening_lines.filter_map do |line|
+        match = line.match(COMPANY_LABEL_PATTERN)
+        next unless match
 
-      first_line.slice(0, 64)
+        company_name_candidate(match[1]) || match[1].split(/\s+[-–—|｜]\s+|\||・/).first&.strip&.slice(0, 64).presence
+      end.first
+      return labeled_name if labeled_name
+
+      opening_lines.each do |line|
+        candidate = company_name_candidate(line)
+        return candidate if candidate
+      end
+
+      nil
+    end
+
+    def company_name_candidate(line)
+      line.to_s.split(/\s+[-–—|｜]\s+|[：:]|\|/).each do |segment|
+        normalized = segment.gsub(/\A[>#*\s]+|[>#*\s]+\z/, "").strip
+        next if normalized.blank?
+
+        match = normalized.match(COMPANY_NAME_PATTERN)
+        return match[0].strip if match
+      end
+
+      nil
     end
 
     def salary_pair

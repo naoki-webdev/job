@@ -3,7 +3,7 @@ require "json"
 
 module JobDrafts
   class AiExtractor
-    MODEL = "gemini-2.5-flash".freeze
+    MODEL = "gemini-3.8-flash".freeze
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models".freeze
     OPEN_TIMEOUT_SECONDS = 5
     TIMEOUT_SECONDS = 30
@@ -113,7 +113,7 @@ module JobDrafts
           responseMimeType: "application/json",
           responseSchema: SCHEMA,
           maxOutputTokens: MAX_OUTPUT_TOKENS,
-          temperature: 0.2
+          thinkingConfig: { thinkingLevel: "medium" }
         }
       }
     end
@@ -139,6 +139,9 @@ module JobDrafts
         }
 
         - 数値は数値型で。年収は「万円」「円」表記から日本円ベースの整数に変換する（例: 700万 → 7000000）。
+        - company_name は求人を募集している企業名を返す。会社自身の公式サイトなら、募集主体と一致することを確認したうえで、ヘッダー・フッター・ロゴ・会社概要の会社名も根拠にしてよい。
+        - 求人サイトや求人ポータルでは、サイト名や運営会社名を company_name にしない。現在の求人タイトル、企業紹介、事業内容に結びつく募集企業を優先し、関連求人・広告・フッターの運営会社は除外する。
+        - URL はサイト種別を判断する参考にするが、URL のドメイン名だけから会社名を推測しない。会社名や法人格が特定できなければ null にする。
         - work_style は記述から推定し、明記がなければ null。
         - tech_stacks は次のマスタを参考にし、近い名前があれば寄せる: #{master_names(:tech_stacks)}
         - location は次のマスタから1つ選ぶ: #{master_names(:locations)}。マッチしなければ null。

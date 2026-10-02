@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -33,7 +33,9 @@ import {
 } from "../hooks/useJobFormDraft";
 import { t } from "../i18n";
 import type { Job, JobFormPayload, MasterDataItem } from "../types/job";
+import { scrollToFirstInvalidField } from "../utils/formValidation";
 import CompanyLogoField from "./CompanyLogoField";
+import FormErrorSummary from "./FormErrorSummary";
 import OverflowTooltipText from "./OverflowTooltipText";
 
 type JobFormDrawerProps = {
@@ -67,6 +69,7 @@ function JobFormDrawer({
 }: JobFormDrawerProps) {
   const {
     formValues,
+    submitAttempt,
     selectableLocations,
     selectablePositions,
     selectableTechStacks,
@@ -75,6 +78,20 @@ function JobFormDrawer({
     handleChange,
     submit,
   } = useJobFormDraft({ open, initialJob, initialDraft, locations, positions, techStacks });
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrorMessages = [
+    getFieldError("company_name"),
+    getFieldError("position_id"),
+    getFieldError("work_style"),
+    getFieldError("salary_min"),
+    getFieldError("salary_max"),
+    getFieldError("tech_stack_ids"),
+    getFieldError("location_id"),
+  ].filter((message): message is string => Boolean(message));
+
+  useEffect(() => {
+    if (submitAttempt > 0) scrollToFirstInvalidField(formRef.current);
+  }, [submitAttempt]);
 
   return (
     <Drawer
@@ -85,6 +102,7 @@ function JobFormDrawer({
       slotProps={{ backdrop: { sx: { backgroundColor: "rgba(9, 30, 66, 0.1)" } } }}
     >
       <Box
+        ref={formRef}
         sx={{
           width: { xs: "100vw", sm: 460 },
           px: { xs: 2, sm: 2.5 },
@@ -106,6 +124,8 @@ function JobFormDrawer({
             </Alert>
           )}
 
+          {submitAttempt > 0 && <FormErrorSummary messages={formErrorMessages} />}
+
           <TextField
             label={t("jobs.form.company_name")}
             value={formValues.company_name}
@@ -115,6 +135,7 @@ function JobFormDrawer({
             required
             error={Boolean(getFieldError("company_name"))}
             helperText={getFieldError("company_name")}
+            data-field-error={getFieldError("company_name") ? "true" : undefined}
           />
 
           <CompanyLogoField
@@ -127,7 +148,7 @@ function JobFormDrawer({
             onRemoveLogoChange={(removeLogo) => handleChange("remove_company_logo", removeLogo)}
           />
 
-          <FormControl size="small" error={Boolean(getFieldError("position_id"))}>
+          <FormControl size="small" required error={Boolean(getFieldError("position_id"))} data-field-error={getFieldError("position_id") ? "true" : undefined}>
             <InputLabel id="job-form-position-label">{t("jobs.form.position")}</InputLabel>
             <Select
               labelId="job-form-position-label"
@@ -169,7 +190,7 @@ function JobFormDrawer({
             </Select>
           </FormControl>
 
-          <FormControl size="small">
+          <FormControl size="small" required error={Boolean(getFieldError("work_style"))} data-field-error={getFieldError("work_style") ? "true" : undefined}>
             <InputLabel id="job-form-work-style-label">{t("jobs.form.work_style")}</InputLabel>
             <Select
               labelId="job-form-work-style-label"
@@ -182,6 +203,7 @@ function JobFormDrawer({
                   handleChange("work_style", event.target.value);
                 }
               }}
+              onBlur={() => handleBlur("work_style")}
             >
               <MenuItem value="">{t("jobs.form.unknown_work_style")}</MenuItem>
               {WORK_STYLE_OPTIONS.map((workStyle) => (
@@ -190,6 +212,9 @@ function JobFormDrawer({
                 </MenuItem>
               ))}
             </Select>
+            <Typography variant="caption" color="error" sx={{ px: 1.75, pt: 0.5 }}>
+              {getFieldError("work_style") ?? " "}
+            </Typography>
           </FormControl>
 
           <FormControl size="small">
@@ -224,6 +249,7 @@ function JobFormDrawer({
               required
               error={Boolean(getFieldError("salary_min"))}
               helperText={getFieldError("salary_min")}
+              data-field-error={getFieldError("salary_min") ? "true" : undefined}
             />
             <TextField
               label={t("jobs.form.salary_max")}
@@ -236,10 +262,11 @@ function JobFormDrawer({
               required
               error={Boolean(getFieldError("salary_max"))}
               helperText={getFieldError("salary_max")}
+              data-field-error={getFieldError("salary_max") ? "true" : undefined}
             />
           </Stack>
 
-          <FormControl size="small" error={Boolean(getFieldError("tech_stack_ids"))}>
+          <FormControl size="small" required error={Boolean(getFieldError("tech_stack_ids"))} data-field-error={getFieldError("tech_stack_ids") ? "true" : undefined}>
             <InputLabel id="job-form-tech-stacks-label">{t("jobs.form.tech_stack")}</InputLabel>
             <Select
               labelId="job-form-tech-stacks-label"
@@ -267,7 +294,7 @@ function JobFormDrawer({
               {getFieldError("tech_stack_ids") ?? " "}
             </Typography>
           </FormControl>
-          <FormControl size="small" error={Boolean(getFieldError("location_id"))}>
+          <FormControl size="small" required error={Boolean(getFieldError("location_id"))} data-field-error={getFieldError("location_id") ? "true" : undefined}>
             <InputLabel id="job-form-location-label">{t("jobs.form.location")}</InputLabel>
             <Select
               labelId="job-form-location-label"

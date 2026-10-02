@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -8,10 +8,10 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
 import { t } from "../i18n";
+import { requiredInputMessage, scrollToFirstInvalidField } from "../utils/formValidation";
 import type { InterviewQuestionItem, InterviewQuestionPayload } from "../types/job";
 import {
   type InterviewQuestionDraft,
-  isValidInterviewQuestionDraft,
   parseNumericInput,
   toInterviewQuestionPayload,
 } from "./masterDataDrafts";
@@ -36,6 +36,16 @@ function InterviewQuestionSection({
   onDelete,
 }: InterviewQuestionSectionProps) {
   const [drafts, setDrafts] = useState<Record<number, InterviewQuestionDraft>>({});
+  const [attemptedRows, setAttemptedRows] = useState<Record<number, boolean>>({});
+  const [newItemAttempted, setNewItemAttempted] = useState(false);
+  const [scrollAttempt, setScrollAttempt] = useState(0);
+  const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const newItemRef = useRef<HTMLDivElement>(null);
+  const scrollTargetRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (scrollAttempt > 0) scrollToFirstInvalidField(scrollTargetRef.current);
+  }, [scrollAttempt]);
 
   useEffect(() => {
     const nextDrafts: Record<number, InterviewQuestionDraft> = {};
@@ -73,9 +83,12 @@ function InterviewQuestionSection({
             active: item.active,
             display_order: item.display_order,
           };
-
           return (
-            <Box key={item.id} sx={{ py: 1.25, borderBottom: 1, borderColor: "divider" }}>
+            <Box
+              key={item.id}
+              ref={(element: HTMLDivElement | null) => { rowRefs.current[item.id] = element; }}
+              sx={{ py: 1.25, borderBottom: 1, borderColor: "divider" }}
+            >
             <Stack spacing={1.25}>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
                 <TextField
@@ -83,6 +96,10 @@ function InterviewQuestionSection({
                   label={t("interview_questions.body")}
                   value={draft.body}
                   onChange={(event) => updateDraft(item.id, "body", event.target.value)}
+                  required
+                  error={Boolean(attemptedRows[item.id] && !draft.body.trim())}
+                  helperText={attemptedRows[item.id] && !draft.body.trim() ? requiredInputMessage(t("interview_questions.body")) : " "}
+                  data-field-error={attemptedRows[item.id] && !draft.body.trim() ? "true" : undefined}
                   sx={{ flex: 1 }}
                 />
                 <TextField
@@ -91,6 +108,10 @@ function InterviewQuestionSection({
                   type="number"
                   value={draft.display_order}
                   onChange={(event) => updateDraft(item.id, "display_order", parseNumericInput(event.target.value))}
+                  required
+                  error={Boolean(attemptedRows[item.id] && draft.display_order === "")}
+                  helperText={attemptedRows[item.id] && draft.display_order === "" ? requiredInputMessage(t("master_data.order")) : " "}
+                  data-field-error={attemptedRows[item.id] && draft.display_order === "" ? "true" : undefined}
                   sx={{ width: { xs: "100%", sm: 104 } }}
                 />
               </Stack>
@@ -112,10 +133,16 @@ function InterviewQuestionSection({
                     aria-label={t("interview_questions.save_item", { name: draft.body || item.body })}
                     onClick={() => {
                       const payload = toInterviewQuestionPayload(draft);
-                      if (!payload) return;
+                      if (!payload) {
+                        setAttemptedRows((prev) => ({ ...prev, [item.id]: true }));
+                        scrollTargetRef.current = rowRefs.current[item.id] ?? null;
+                        setScrollAttempt((attempt) => attempt + 1);
+                        return;
+                      }
+                      setAttemptedRows((prev) => ({ ...prev, [item.id]: false }));
                       void onUpdate(item.id, payload);
                     }}
-                    disabled={submitting || !isValidInterviewQuestionDraft(draft)}
+                    disabled={submitting}
                   >
                     {t("actions.save")}
                   </Button>
@@ -136,7 +163,7 @@ function InterviewQuestionSection({
         })}
       </Box>
 
-      <Box sx={{ pt: 0.25 }}>
+      <Box ref={newItemRef} sx={{ pt: 0.25 }}>
         <Stack spacing={1.25}>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
             <TextField
@@ -145,6 +172,10 @@ function InterviewQuestionSection({
               placeholder={t("interview_questions.body_placeholder")}
               value={newItem.body}
               onChange={(event) => onNewItemChange({ ...newItem, body: event.target.value })}
+              required
+              error={Boolean(newItemAttempted && !newItem.body.trim())}
+              helperText={newItemAttempted && !newItem.body.trim() ? requiredInputMessage(t("interview_questions.body")) : " "}
+              data-field-error={newItemAttempted && !newItem.body.trim() ? "true" : undefined}
               sx={{ flex: 1 }}
             />
             <TextField
@@ -153,6 +184,10 @@ function InterviewQuestionSection({
               type="number"
               value={newItem.display_order}
               onChange={(event) => onNewItemChange({ ...newItem, display_order: parseNumericInput(event.target.value) })}
+              required
+              error={Boolean(newItemAttempted && newItem.display_order === "")}
+              helperText={newItemAttempted && newItem.display_order === "" ? requiredInputMessage(t("master_data.order")) : " "}
+              data-field-error={newItemAttempted && newItem.display_order === "" ? "true" : undefined}
               sx={{ width: { xs: "100%", sm: 104 } }}
             />
           </Stack>
@@ -162,10 +197,16 @@ function InterviewQuestionSection({
               aria-label={t("interview_questions.add_item")}
               onClick={() => {
                 const payload = toInterviewQuestionPayload(newItem);
-                if (!payload) return;
+                if (!payload) {
+                  setNewItemAttempted(true);
+                  scrollTargetRef.current = newItemRef.current;
+                  setScrollAttempt((attempt) => attempt + 1);
+                  return;
+                }
+                setNewItemAttempted(false);
                 void onCreate(payload);
               }}
-              disabled={submitting || !isValidInterviewQuestionDraft(newItem)}
+              disabled={submitting}
             >
               {t("actions.add_master_data")}
             </Button>

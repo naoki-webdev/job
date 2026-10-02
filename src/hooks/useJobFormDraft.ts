@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { t } from "../i18n";
 import type { Job, JobFormPayload, MasterDataItem } from "../types/job";
+import { nonNegativeMessage, requiredInputMessage, requiredSelectionMessage } from "../utils/formValidation";
 
 export type JobFormDraft = Omit<JobFormPayload, "position_id" | "location_id" | "salary_min" | "salary_max" | "source_url" | "work_style"> & {
   position_id: number | "";
@@ -51,14 +52,14 @@ export function useJobFormDraft({
 }: JobFormDraftParams) {
   const [formValues, setFormValues] = useState<JobFormDraft>(emptyForm);
   const [touchedFields, setTouchedFields] = useState<Partial<Record<keyof JobFormDraft, boolean>>>({});
-  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [submitAttempt, setSubmitAttempt] = useState(0);
 
   useEffect(() => {
     if (!open) return;
 
     setFormValues(buildFormValues(initialJob, initialDraft));
     setTouchedFields({});
-    setSubmitAttempted(false);
+    setSubmitAttempt(0);
   }, [initialDraft, initialJob, open]);
 
   const handleChange = useCallback(<K extends keyof JobFormDraft>(key: K, value: JobFormDraft[K]) => {
@@ -72,8 +73,8 @@ export function useJobFormDraft({
   const errors = useMemo(() => validateFormValues(formValues), [formValues]);
   const isValid = Object.keys(errors).length === 0;
   const getFieldError = useCallback(
-    (key: keyof JobFormDraft) => (submitAttempted || touchedFields[key] ? errors[key] : undefined),
-    [errors, submitAttempted, touchedFields],
+    (key: keyof JobFormDraft) => (submitAttempt > 0 || touchedFields[key] ? errors[key] : undefined),
+    [errors, submitAttempt, touchedFields],
   );
   const selectablePositions = useMemo(
     () => toSelectableItems(positions, formValues.position_id === "" ? [] : [formValues.position_id]),
@@ -89,7 +90,7 @@ export function useJobFormDraft({
   );
 
   const submit = useCallback((onSubmit: (payload: JobFormPayload) => Promise<void> | void) => {
-    setSubmitAttempted(true);
+    setSubmitAttempt((attempt) => attempt + 1);
     if (!isValid) return;
 
     void onSubmit(toJobFormPayload(formValues));
@@ -97,6 +98,7 @@ export function useJobFormDraft({
 
   return {
     formValues,
+    submitAttempt,
     selectableLocations,
     selectablePositions,
     selectableTechStacks,
@@ -192,18 +194,18 @@ function toSelectableItems(items: MasterDataItem[], selectedIds: number[]) {
 function validateFormValues(formValues: JobFormDraft) {
   const nextErrors: Partial<Record<keyof JobFormDraft, string>> = {};
 
-  if (!formValues.company_name.trim()) nextErrors.company_name = t("validation.required");
-  if (!formValues.position_id) nextErrors.position_id = t("validation.required");
-  if (!formValues.work_style) nextErrors.work_style = t("validation.required");
-  if (!formValues.tech_stack_ids.length) nextErrors.tech_stack_ids = t("validation.required");
-  if (!formValues.location_id) nextErrors.location_id = t("validation.required");
-  if (formValues.salary_min === "") nextErrors.salary_min = t("validation.required");
-  if (formValues.salary_max === "") nextErrors.salary_max = t("validation.required");
+  if (!formValues.company_name.trim()) nextErrors.company_name = requiredInputMessage(t("jobs.form.company_name"));
+  if (!formValues.position_id) nextErrors.position_id = requiredSelectionMessage(t("jobs.form.position"));
+  if (!formValues.work_style) nextErrors.work_style = requiredSelectionMessage(t("jobs.form.work_style"));
+  if (!formValues.tech_stack_ids.length) nextErrors.tech_stack_ids = requiredSelectionMessage(t("jobs.form.tech_stack"));
+  if (!formValues.location_id) nextErrors.location_id = requiredSelectionMessage(t("jobs.form.location"));
+  if (formValues.salary_min === "") nextErrors.salary_min = requiredInputMessage(t("jobs.form.salary_min"));
+  if (formValues.salary_max === "") nextErrors.salary_max = requiredInputMessage(t("jobs.form.salary_max"));
   if (typeof formValues.salary_min === "number" && formValues.salary_min < 0) {
-    nextErrors.salary_min = t("validation.non_negative");
+    nextErrors.salary_min = nonNegativeMessage(t("jobs.form.salary_min"));
   }
   if (typeof formValues.salary_max === "number" && formValues.salary_max < 0) {
-    nextErrors.salary_max = t("validation.non_negative");
+    nextErrors.salary_max = nonNegativeMessage(t("jobs.form.salary_max"));
   }
   if (
     typeof formValues.salary_min === "number" &&

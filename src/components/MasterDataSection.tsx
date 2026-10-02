@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -8,10 +8,10 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
 import { t } from "../i18n";
+import { requiredInputMessage, scrollToFirstInvalidField } from "../utils/formValidation";
 import type { MasterDataItem, MasterDataPayload } from "../types/job";
 import {
   type MasterDataDraft,
-  isValidMasterDataDraft,
   parseNumericInput,
   toMasterDataPayload,
 } from "./masterDataDrafts";
@@ -42,6 +42,16 @@ function MasterDataSection({
   onDelete,
 }: MasterDataSectionProps) {
   const [drafts, setDrafts] = useState<Record<number, MasterDataDraft>>({});
+  const [attemptedRows, setAttemptedRows] = useState<Record<number, boolean>>({});
+  const [newItemAttempted, setNewItemAttempted] = useState(false);
+  const [scrollAttempt, setScrollAttempt] = useState(0);
+  const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const newItemRef = useRef<HTMLDivElement>(null);
+  const scrollTargetRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (scrollAttempt > 0) scrollToFirstInvalidField(scrollTargetRef.current);
+  }, [scrollAttempt]);
 
   useEffect(() => {
     const nextDrafts: Record<number, MasterDataDraft> = {};
@@ -77,9 +87,12 @@ function MasterDataSection({
             active: item.active,
             display_order: item.display_order,
           };
-
           return (
-            <Box key={item.id} sx={{ py: 1.25, borderBottom: 1, borderColor: "divider" }}>
+            <Box
+              key={item.id}
+              ref={(element: HTMLDivElement | null) => { rowRefs.current[item.id] = element; }}
+              sx={{ py: 1.25, borderBottom: 1, borderColor: "divider" }}
+            >
             <Stack spacing={1.25}>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
                 <TextField
@@ -88,6 +101,10 @@ function MasterDataSection({
                   placeholder={namePlaceholder}
                   value={draft.name}
                   onChange={(event) => updateDraft(item.id, "name", event.target.value)}
+                  required
+                  error={Boolean(attemptedRows[item.id] && !draft.name.trim())}
+                  helperText={attemptedRows[item.id] && !draft.name.trim() ? requiredInputMessage(nameLabel) : " "}
+                  data-field-error={attemptedRows[item.id] && !draft.name.trim() ? "true" : undefined}
                   sx={{ flex: 1 }}
                 />
                 <TextField
@@ -96,6 +113,10 @@ function MasterDataSection({
                   type="number"
                   value={draft.score_weight}
                   onChange={(event) => updateDraft(item.id, "score_weight", parseNumericInput(event.target.value))}
+                  required
+                  error={Boolean(attemptedRows[item.id] && draft.score_weight === "")}
+                  helperText={attemptedRows[item.id] && draft.score_weight === "" ? requiredInputMessage(t("master_data.weight")) : " "}
+                  data-field-error={attemptedRows[item.id] && draft.score_weight === "" ? "true" : undefined}
                   sx={{ width: { xs: "100%", sm: 116 } }}
                 />
                 <TextField
@@ -104,6 +125,10 @@ function MasterDataSection({
                   type="number"
                   value={draft.display_order}
                   onChange={(event) => updateDraft(item.id, "display_order", parseNumericInput(event.target.value))}
+                  required
+                  error={Boolean(attemptedRows[item.id] && draft.display_order === "")}
+                  helperText={attemptedRows[item.id] && draft.display_order === "" ? requiredInputMessage(t("master_data.order")) : " "}
+                  data-field-error={attemptedRows[item.id] && draft.display_order === "" ? "true" : undefined}
                   sx={{ width: { xs: "100%", sm: 104 } }}
                 />
               </Stack>
@@ -125,10 +150,16 @@ function MasterDataSection({
                     aria-label={t("master_data.save_item", { name: draft.name || item.name })}
                     onClick={() => {
                       const payload = toMasterDataPayload(draft);
-                      if (!payload) return;
+                      if (!payload) {
+                        setAttemptedRows((prev) => ({ ...prev, [item.id]: true }));
+                        scrollTargetRef.current = rowRefs.current[item.id] ?? null;
+                        setScrollAttempt((attempt) => attempt + 1);
+                        return;
+                      }
+                      setAttemptedRows((prev) => ({ ...prev, [item.id]: false }));
                       void onUpdate(item.id, payload);
                     }}
-                    disabled={submitting || !isValidMasterDataDraft(draft)}
+                    disabled={submitting}
                   >
                     {t("actions.save")}
                   </Button>
@@ -149,7 +180,7 @@ function MasterDataSection({
         })}
       </Box>
 
-      <Box sx={{ pt: 0.25 }}>
+      <Box ref={newItemRef} sx={{ pt: 0.25 }}>
         <Stack spacing={1.25}>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
             <TextField
@@ -158,6 +189,10 @@ function MasterDataSection({
               placeholder={namePlaceholder}
               value={newItem.name}
               onChange={(event) => onNewItemChange({ ...newItem, name: event.target.value })}
+              required
+              error={Boolean(newItemAttempted && !newItem.name.trim())}
+              helperText={newItemAttempted && !newItem.name.trim() ? requiredInputMessage(nameLabel) : " "}
+              data-field-error={newItemAttempted && !newItem.name.trim() ? "true" : undefined}
               sx={{ flex: 1 }}
             />
             <TextField
@@ -166,6 +201,10 @@ function MasterDataSection({
               type="number"
               value={newItem.score_weight}
               onChange={(event) => onNewItemChange({ ...newItem, score_weight: parseNumericInput(event.target.value) })}
+              required
+              error={Boolean(newItemAttempted && newItem.score_weight === "")}
+              helperText={newItemAttempted && newItem.score_weight === "" ? requiredInputMessage(t("master_data.weight")) : " "}
+              data-field-error={newItemAttempted && newItem.score_weight === "" ? "true" : undefined}
               sx={{ width: { xs: "100%", sm: 116 } }}
             />
             <TextField
@@ -174,6 +213,10 @@ function MasterDataSection({
               type="number"
               value={newItem.display_order}
               onChange={(event) => onNewItemChange({ ...newItem, display_order: parseNumericInput(event.target.value) })}
+              required
+              error={Boolean(newItemAttempted && newItem.display_order === "")}
+              helperText={newItemAttempted && newItem.display_order === "" ? requiredInputMessage(t("master_data.order")) : " "}
+              data-field-error={newItemAttempted && newItem.display_order === "" ? "true" : undefined}
               sx={{ width: { xs: "100%", sm: 104 } }}
             />
           </Stack>
@@ -183,10 +226,16 @@ function MasterDataSection({
               aria-label={t("master_data.add_item", { section: title })}
               onClick={() => {
                 const payload = toMasterDataPayload(newItem);
-                if (!payload) return;
+                if (!payload) {
+                  setNewItemAttempted(true);
+                  scrollTargetRef.current = newItemRef.current;
+                  setScrollAttempt((attempt) => attempt + 1);
+                  return;
+                }
+                setNewItemAttempted(false);
                 void onCreate(payload);
               }}
-              disabled={submitting || !isValidMasterDataDraft(newItem)}
+              disabled={submitting}
             >
               {t("actions.add_master_data")}
             </Button>

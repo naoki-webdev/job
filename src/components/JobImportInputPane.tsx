@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -14,6 +16,7 @@ import Typography from "@mui/material/Typography";
 
 import { t } from "../i18n";
 import type { JobDraftMode } from "../types/job";
+import { scrollToFirstInvalidField } from "../utils/formValidation";
 import InfoTooltip from "./InfoTooltip";
 
 type JobImportInputPaneProps = {
@@ -56,8 +59,15 @@ export default function JobImportInputPane({
   onAnalyze,
   onSubmitAttempt,
 }: JobImportInputPaneProps) {
+  const paneRef = useRef<HTMLDivElement>(null);
+  const [submitAttempt, setSubmitAttempt] = useState(0);
+
+  useEffect(() => {
+    if (submitAttempt > 0 && textError) scrollToFirstInvalidField(paneRef.current);
+  }, [submitAttempt, textError]);
+
   return (
-    <Box sx={{ p: { xs: 1.5, sm: 2 }, borderColor: "divider", borderRight: { md: 1 }, borderBottom: { xs: 1, md: 0 } }}>
+    <Box ref={paneRef} sx={{ p: { xs: 1.5, sm: 2 }, borderColor: "divider", borderRight: { md: 1 }, borderBottom: { xs: 1, md: 0 } }}>
       <Stack spacing={2}>
         <Typography variant="subtitle2">{t("import.before_title")}</Typography>
 
@@ -112,6 +122,8 @@ export default function JobImportInputPane({
           size="small"
           fullWidth
           error={Boolean(textError)}
+          required
+          data-field-error={textError ? "true" : undefined}
           inputProps={{ maxLength: 8000 }}
           helperText={
             textError ??
@@ -137,6 +149,7 @@ export default function JobImportInputPane({
           <Button
             variant="contained"
             onClick={() => {
+              setSubmitAttempt((attempt) => attempt + 1);
               onSubmitAttempt();
               if (!text.trim()) return;
               onAnalyze({ mode, text, url });

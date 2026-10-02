@@ -3,7 +3,7 @@ require "net/http"
 
 module JobAnalysis
   class AiAnalyzer
-    MODEL = "gemini-2.5-flash".freeze
+    MODEL = "gemini-3.8-flash".freeze
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models".freeze
     OPEN_TIMEOUT_SECONDS = 5
     TIMEOUT_SECONDS = 45
@@ -95,7 +95,7 @@ module JobAnalysis
           responseMimeType: "application/json",
           responseSchema: SCHEMA,
           maxOutputTokens: MAX_OUTPUT_TOKENS,
-          temperature: 0.1
+          thinkingConfig: { thinkingLevel: "medium" }
         }
       }
     end

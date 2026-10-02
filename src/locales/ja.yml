@@ -277,9 +277,12 @@ ja:
     analyze_job: "AI求人判定に失敗しました。時間をおいて再試行してください。"
 
   validation:
-    required: "入力してください。"
-    non_negative: "0以上の値を入力してください。"
+    required_input: "%{field}を入力してください。"
+    required_selection: "%{field}を選択してください。"
+    non_negative_field: "%{field}は0以上で入力してください。"
     salary_range: "年収上限は年収下限以上にしてください。"
+    email_format: "メールアドレスの形式で入力してください。"
+    form_prompt: "次の項目を確認してください。"
 
   enums:
     job_status:

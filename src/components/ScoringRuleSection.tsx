@@ -9,27 +9,37 @@ import Typography from "@mui/material/Typography";
 
 import { t } from "../i18n";
 import type { ScoringPreferencePayload } from "../types/job";
+import { requiredInputMessage } from "../utils/formValidation";
 import { type ScoringPreferenceDraft, parseNumericInput } from "./masterDataDrafts";
 import InfoTooltip from "./InfoTooltip";
 
 type ScoringRuleSectionProps = {
   values: ScoringPreferenceDraft;
   error?: string | null;
+  showValidationErrors?: boolean;
   onChange: (key: keyof ScoringPreferenceDraft, value: number | "") => void;
 };
 
-function ScoringRuleSection({ values, error, onChange }: ScoringRuleSectionProps) {
-  const renderScoringField = (key: keyof ScoringPreferencePayload) => (
-    <TextField
-      key={key}
-      label={t(`scoring.${key}`)}
-      type="number"
-      value={values[key]}
-      onChange={(event) => onChange(key, parseNumericInput(event.target.value))}
-      size="small"
-      fullWidth
-    />
-  );
+function ScoringRuleSection({ values, error, showValidationErrors = false, onChange }: ScoringRuleSectionProps) {
+  const renderScoringField = (key: keyof ScoringPreferencePayload) => {
+    const fieldError = showValidationErrors && values[key] === "";
+
+    return (
+      <TextField
+        key={key}
+        label={t(`scoring.${key}`)}
+        type="number"
+        value={values[key]}
+        onChange={(event) => onChange(key, parseNumericInput(event.target.value))}
+        size="small"
+        required
+        error={fieldError}
+        helperText={fieldError ? requiredInputMessage(t(`scoring.${key}`)) : " "}
+        data-field-error={fieldError ? "true" : undefined}
+        fullWidth
+      />
+    );
+  };
 
   return (
     <Stack spacing={2}>

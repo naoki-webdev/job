@@ -27,10 +27,19 @@ module JobDrafts
     def extract
       if @mode == "ai" && AiExtractor.available?
         ai = AiExtractor.new(text: @text, url: @url, masters: masters).call
-        return [ normalize_response(ai), "ai" ] if useful_ai_response?(ai)
+        normalized_ai = normalize_response(ai)
+        if useful_ai_response?(normalized_ai)
+          explicit_company_name = rule_based_result["company_name"]
+          normalized_ai["company_name"] = explicit_company_name if explicit_company_name.present?
+          return [ normalized_ai, "ai" ]
+        end
       end
 
-      [ RuleBasedParser.new(text: @text, url: @url, masters: masters).call, "rule" ]
+      [ rule_based_result, "rule" ]
+    end
+
+    def rule_based_result
+      @rule_based_result ||= RuleBasedParser.new(text: @text, url: @url, masters: masters).call
     end
 
     def useful_ai_response?(response)

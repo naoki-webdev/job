@@ -38,7 +38,7 @@ const defaultProps = {
 };
 
 async function openSelect(label: string) {
-  fireEvent.mouseDown(screen.getByLabelText(label));
+  fireEvent.mouseDown(screen.getByLabelText(label, { exact: false }));
 }
 
 async function chooseSingleOption(user: ReturnType<typeof userEvent.setup>, label: string, option: string) {
@@ -61,7 +61,7 @@ describe("JobFormDrawer", () => {
     expect(screen.getByRole("heading", { name: "求人を新規作成" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "会社名" })).toHaveValue("");
     expect(screen.getByLabelText("選考状況")).toHaveTextContent("気になる");
-    expect(screen.getByLabelText("働き方")).toHaveTextContent("ハイブリッド");
+    expect(screen.getByLabelText("働き方", { exact: false })).toHaveTextContent("ハイブリッド");
     expect(screen.getByLabelText("雇用形態")).toHaveTextContent("正社員");
     expect(screen.getByRole("spinbutton", { name: "年収下限" })).toHaveValue(4_500_000);
     expect(screen.getByRole("spinbutton", { name: "年収上限" })).toHaveValue(6_000_000);
@@ -72,13 +72,18 @@ describe("JobFormDrawer", () => {
     const user = userEvent.setup();
     render(<JobFormDrawer {...defaultProps} initialDraft={{ company_name: "株式会社サンプル" }} onSubmit={onSubmit} />);
 
-    expect(screen.getByLabelText("働き方")).toHaveTextContent("選択してください");
+    expect(screen.getByLabelText("働き方", { exact: false })).toHaveTextContent("選択してください");
     expect(screen.getByRole("spinbutton", { name: "年収下限" })).toHaveValue(null);
     expect(screen.getByRole("spinbutton", { name: "年収上限" })).toHaveValue(null);
 
     await user.click(screen.getByRole("button", { name: "保存" }));
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getAllByText("入力してください。")).toHaveLength(5);
+    expect(screen.getAllByText("職種を選択してください。")).toHaveLength(2);
+    expect(screen.getAllByText("働き方を選択してください。")).toHaveLength(2);
+    expect(screen.getAllByText("年収下限を入力してください。")).toHaveLength(2);
+    expect(screen.getAllByText("年収上限を入力してください。")).toHaveLength(2);
+    expect(screen.getAllByText("技術スタックを選択してください。")).toHaveLength(2);
+    expect(screen.getAllByText("勤務地を選択してください。")).toHaveLength(2);
   });
 
   it("shows required validation errors and blocks submit when required fields are missing", async () => {
@@ -90,7 +95,10 @@ describe("JobFormDrawer", () => {
     await user.click(screen.getByRole("button", { name: "保存" }));
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getAllByText("入力してください。")).toHaveLength(4);
+    expect(screen.getAllByText("会社名を入力してください。")).toHaveLength(2);
+    expect(screen.getAllByText("職種を選択してください。")).toHaveLength(2);
+    expect(screen.getAllByText("技術スタックを選択してください。")).toHaveLength(2);
+    expect(screen.getAllByText("勤務地を選択してください。")).toHaveLength(2);
   });
 
   it("submits a normalized payload from the form fields", async () => {
@@ -201,13 +209,13 @@ describe("JobFormDrawer", () => {
     });
 
     expect(screen.getByRole("textbox", { name: "会社名" })).toHaveValue("編集対象の会社");
-    expect(screen.getByLabelText("職種")).toHaveTextContent("テックリード");
-    expect(screen.getByLabelText("働き方")).toHaveTextContent("フル出社");
+    expect(screen.getByLabelText("職種", { exact: false })).toHaveTextContent("テックリード");
+    expect(screen.getByLabelText("働き方", { exact: false })).toHaveTextContent("フル出社");
     expect(screen.getByLabelText("雇用形態")).toHaveTextContent("契約社員");
     expect(screen.getByRole("spinbutton", { name: "年収下限" })).toHaveValue(6_200_000);
     expect(screen.getByRole("spinbutton", { name: "年収上限" })).toHaveValue(8_100_000);
-    expect(screen.getByLabelText("技術スタック")).toHaveTextContent("TypeScript, React");
-    expect(screen.getByLabelText("勤務地")).toHaveTextContent("リモート");
+    expect(screen.getByLabelText("技術スタック", { exact: false })).toHaveTextContent("TypeScript, React");
+    expect(screen.getByLabelText("勤務地", { exact: false })).toHaveTextContent("リモート");
     expect(screen.getByRole("textbox", { name: "メモ" })).toHaveValue("既存メモ");
   });
 
@@ -228,10 +236,10 @@ describe("JobFormDrawer", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByLabelText("職種")).toHaveTextContent("アーカイブ済み職種 (無効)");
+      expect(screen.getByLabelText("職種", { exact: false })).toHaveTextContent("アーカイブ済み職種 (無効)");
     });
 
-    expect(screen.getByLabelText("勤務地")).toHaveTextContent("旧拠点 (無効)");
-    expect(screen.getByLabelText("技術スタック")).toHaveTextContent("旧技術 (無効)");
+    expect(screen.getByLabelText("勤務地", { exact: false })).toHaveTextContent("旧拠点 (無効)");
+    expect(screen.getByLabelText("技術スタック", { exact: false })).toHaveTextContent("旧技術 (無効)");
   });
 });

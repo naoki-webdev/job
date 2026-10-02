@@ -25,11 +25,13 @@ module JobDrafts
       end
 
       assert_equal "secret-key", http.last_request["x-goog-api-key"]
-      assert_equal "/v1beta/models/gemini-2.5-flash:generateContent", http.last_request.path
+      assert_equal "/v1beta/models/gemini-3.8-flash:generateContent", http.last_request.path
       assert_not_includes http.last_request.path, "key="
       assert_not_includes http.last_request.body, "score_estimate"
       request_payload = JSON.parse(http.last_request.body)
       assert request_payload.dig("generationConfig", "responseSchema", "properties", "company_name")
+      assert_equal "medium", request_payload.dig("generationConfig", "thinkingConfig", "thinkingLevel")
+      assert_nil request_payload.dig("generationConfig", "temperature")
       assert_includes request_payload.dig("system_instruction", "parts", 0, "text"), "求人票本文"
       assert_includes request_payload.dig("contents", 0, "parts", 0, "text"), "START_JOB_TEXT"
     ensure
