@@ -25,7 +25,7 @@ module JobDrafts
       end
 
       assert_equal "secret-key", http.last_request["x-goog-api-key"]
-      assert_equal "/v1beta/models/gemini-3.8-flash:generateContent", http.last_request.path
+      assert_equal "/v1beta/models/gemini-3.1-flash-lite:generateContent", http.last_request.path
       assert_not_includes http.last_request.path, "key="
       assert_not_includes http.last_request.body, "score_estimate"
       request_payload = JSON.parse(http.last_request.body)
@@ -36,6 +36,34 @@ module JobDrafts
       assert_includes request_payload.dig("contents", 0, "parts", 0, "text"), "START_JOB_TEXT"
     ensure
       ENV.delete("GEMINI_API_KEY")
+    end
+
+    test "tries Flash Lite before falling back to Flash" do
+      previous_api_key = ENV["GEMINI_API_KEY"]
+      ENV["GEMINI_API_KEY"] = "test-key"
+      extractor = AiExtractor.new(text: "求人本文", url: "", masters: empty_masters)
+      requested_models = []
+      response_text = { "company_name" => "サンプル会社" }.to_json
+      response_body = {
+        "candidates" => [
+          { "content" => { "parts" => [ { "text" => response_text } ] } }
+        ]
+      }
+      extractor.define_singleton_method(:http_request) do |model:|
+        requested_models << model
+        if model == AiExtractor::MODEL
+          raise AiExtractor::ApiError.new(status: "503", duration_ms: 3_000)
+        end
+
+        response_body
+      end
+
+      result = extractor.call
+
+      assert_equal [ "gemini-3.1-flash-lite", "gemini-3.8-flash" ], requested_models
+      assert_equal "サンプル会社", result["company_name"]
+    ensure
+      ENV["GEMINI_API_KEY"] = previous_api_key
     end
 
     test "rejects invalid ranges and bounds returned by the model" do

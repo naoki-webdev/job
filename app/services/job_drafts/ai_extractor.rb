@@ -3,15 +3,15 @@ require "json"
 
 module JobDrafts
   class AiExtractor
-    MODEL = "gemini-3.8-flash".freeze
-    FALLBACK_MODEL = "gemini-3.1-flash-lite".freeze
+    MODEL = "gemini-3.1-flash-lite".freeze
+    FALLBACK_MODEL = "gemini-3.8-flash".freeze
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models".freeze
     OPEN_TIMEOUT_SECONDS = 5
-    TIMEOUT_SECONDS = 12
-    FALLBACK_TIMEOUT_SECONDS = 12
-    RETRY_TIMEOUT_SECONDS = 8
+    TIMEOUT_SECONDS = 8
+    FALLBACK_TIMEOUT_SECONDS = 5
+    RETRY_TIMEOUT_SECONDS = 4
     MAX_RETRIES = 1
-    MAX_RETRYABLE_RESPONSE_MILLISECONDS = 5_000
+    MAX_RETRYABLE_RESPONSE_MILLISECONDS = 2_500
     RETRY_BASE_DELAY_SECONDS = 0.5
     MAX_RETRY_DELAY_SECONDS = 2.0
     RETRYABLE_HTTP_STATUSES = %w[429 500 502 503 504].freeze
