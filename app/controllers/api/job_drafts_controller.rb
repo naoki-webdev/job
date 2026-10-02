@@ -44,9 +44,9 @@ module Api
 
     def effective_mode
       requested = draft_params[:mode]
-      return requested if current_user.ai_enabled?
+      return "rule" unless current_user.ai_enabled?
 
-      "rule"
+      requested.presence || "ai"
     end
   end
 end

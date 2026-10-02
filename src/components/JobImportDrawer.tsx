@@ -33,14 +33,17 @@ export default function JobImportDrawer({
   onAnalyze,
   onConfirm,
 }: JobImportDrawerProps) {
-  const [mode, setMode] = useState<JobDraftMode>("rule");
+  const [mode, setMode] = useState<JobDraftMode>(aiEnabled ? "ai" : "rule");
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
-    if (open) setSubmitAttempted(false);
-  }, [open]);
+    if (open) {
+      setSubmitAttempted(false);
+      setMode(aiEnabled ? "ai" : "rule");
+    }
+  }, [open, aiEnabled]);
 
   useEffect(() => {
     if (!aiEnabled && mode === "ai") setMode("rule");

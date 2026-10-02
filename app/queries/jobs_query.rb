@@ -46,27 +46,31 @@ class JobsQuery
     metadata[:recommended_job_ids]
   end
 
-  def metadata
+  def metadata(jobs: nil)
     @metadata ||= begin
-      total_count, remote_friendly, active_pipeline, high_score, eligible_count = filtered_scope
-        .unscope(:order)
-        .pick(
-          Arel.sql("COUNT(jobs.id)"),
-          Arel.sql("COUNT(jobs.id) FILTER (WHERE jobs.work_style <> 'onsite')"),
-          Arel.sql("COUNT(jobs.id) FILTER (WHERE jobs.status IN ('interested', 'applied', 'interviewing'))"),
-          Arel.sql("COUNT(jobs.id) FILTER (WHERE jobs.score >= 50)"),
-          Arel.sql("COUNT(jobs.id) FILTER (WHERE jobs.status <> 'rejected')")
-        ).map(&:to_i)
+      if complete_first_page?(jobs)
+        metadata_from_jobs(jobs)
+      else
+        total_count, remote_friendly, active_pipeline, high_score, eligible_count = filtered_scope
+          .unscope(:order)
+          .pick(
+            Arel.sql("COUNT(jobs.id)"),
+            Arel.sql("COUNT(jobs.id) FILTER (WHERE jobs.work_style <> 'onsite')"),
+            Arel.sql("COUNT(jobs.id) FILTER (WHERE jobs.status IN ('interested', 'applied', 'interviewing'))"),
+            Arel.sql("COUNT(jobs.id) FILTER (WHERE jobs.score >= 50)"),
+            Arel.sql("COUNT(jobs.id) FILTER (WHERE jobs.status <> 'rejected')")
+          ).map(&:to_i)
 
-      {
-        total_count: total_count,
-        summary: {
-          remote_friendly: remote_friendly,
-          active_pipeline: active_pipeline,
-          high_score: high_score
-        },
-        recommended_job_ids: recommended_ids_for(eligible_count)
-      }
+        {
+          total_count: total_count,
+          summary: {
+            remote_friendly: remote_friendly,
+            active_pipeline: active_pipeline,
+            high_score: high_score
+          },
+          recommended_job_ids: recommended_ids_for(eligible_count)
+        }
+      end
     end
   end
 
@@ -88,6 +92,29 @@ class JobsQuery
   end
 
   private
+
+  def complete_first_page?(jobs)
+    page == 1 && !jobs.nil? && jobs.length < per_page
+  end
+
+  def metadata_from_jobs(jobs)
+    eligible_jobs = jobs.reject { |job| job.status == "rejected" }
+    recommended_count = [ (eligible_jobs.length + 9) / 10, 1 ].max
+    recommended_ids = eligible_jobs
+      .sort_by { |job| [ job.score.nil? ? 1 : 0, -(job.score || 0), job.id ] }
+      .first(recommended_count)
+      .map(&:id)
+
+    {
+      total_count: jobs.length,
+      summary: {
+        remote_friendly: jobs.count { |job| job.work_style.present? && job.work_style != "onsite" },
+        active_pipeline: jobs.count { |job| ACTIVE_PIPELINE_STATUSES.include?(job.status) },
+        high_score: jobs.count { |job| job.score.present? && job.score >= 50 }
+      },
+      recommended_job_ids: recommended_ids
+    }
+  end
 
   def filtered_scope
     @filtered_scope ||= begin

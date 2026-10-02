@@ -22,7 +22,7 @@ module Api
         page: query.page,
         per_page: query.per_page
       }
-      meta.merge!(query.metadata) if query.include_metadata?
+      meta.merge!(query.metadata(jobs: jobs)) if query.include_metadata?
 
       render json: {
         jobs: JobSerializer.collection(

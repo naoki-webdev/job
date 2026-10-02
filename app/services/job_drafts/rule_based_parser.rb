@@ -63,8 +63,6 @@ module JobDrafts
     private
 
     def extract_company_name
-      lines = @text.each_line.map(&:strip).reject(&:blank?)
-      opening_lines = lines.take_while { |line| !line.match?(COMPANY_SECTION_PATTERN) }.first(80)
       labeled_name = opening_lines.filter_map do |line|
         match = line.match(COMPANY_LABEL_PATTERN)
         next unless match
@@ -95,19 +93,39 @@ module JobDrafts
 
     def salary_pair
       salary_text = @text.match(/(?:想定)?年収\s*[:：]?\s*([^\n。;；]*)/i)&.captures&.first
-      return nil unless salary_text
+      labeled_pair = parse_salary_pair(salary_text) if salary_text.present?
+      return labeled_pair if labeled_pair
+
+      header_salary_lines = opening_lines.select do |line|
+        line.match?(/\d{3,5}\s*万(?:円)?\s*[〜～~\-−–]\s*\d{3,5}\s*万(?:円)?/) ||
+          line.match?(/\A\s*[¥￥]?\s*\d{3,5}\s*万(?:円)?\s*\z/)
+      end
+      parse_salary_pair(header_salary_lines.join(" "))
+    end
+
+    def parse_salary_pair(salary_text)
+      return nil if salary_text.blank?
+      return nil if salary_text.match?(/\d{3,5}\s*万(?:円)?\s*(?:UP|アップ|増額)/i)
 
       salary_text = salary_text.split(/、|入社祝い金|祝い金|賞与|諸手当|手当|インセンティブ/, 2).first
-      manyen_matches = salary_text.scan(/(\d{3,5})\s*万(?:円)?/).map { |m| m.first.to_i }
-      manyen_range_matches = salary_text.scan(/(\d{3,5})\s*[〜～~\-−–]\s*(\d{3,5})\s*万(?:円)?/).flat_map do |minimum, maximum|
-        [ minimum.to_i, maximum.to_i ]
+      manyen_range_matches = salary_text.scan(/(\d{3,5})\s*[〜～~\-−–]\s*(\d{3,5})\s*万(?:円)?/)
+      manyen_matches = if manyen_range_matches.any?
+        manyen_range_matches.flat_map { |minimum, maximum| [ minimum.to_i, maximum.to_i ] }
+      else
+        salary_text.scan(/(\d{3,5})\s*万(?:円)?/).map { |m| m.first.to_i }
       end
       jpy_matches = salary_text.scan(/(\d{1,3}(?:,\d{3})+)\s*円/).map { |m| m.first.delete(",").to_i / 10_000 }
-      candidates = (manyen_matches + manyen_range_matches + jpy_matches).uniq.select { |v| v.between?(300, 5_000) }
+      candidates = (manyen_matches + jpy_matches).uniq.select { |v| v.between?(300, 5_000) }
       return nil if candidates.empty?
 
       sorted = candidates.sort
       [ sorted.first * 10_000, sorted.last * 10_000 ]
+    end
+
+    def opening_lines
+      @opening_lines ||= @text.each_line.map(&:strip).reject(&:blank?)
+        .take_while { |line| !line.match?(COMPANY_SECTION_PATTERN) }
+        .first(80)
     end
 
     def extract_work_style

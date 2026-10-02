@@ -29,8 +29,13 @@ module JobDrafts
         ai = AiExtractor.new(text: @text, url: @url, masters: masters).call
         normalized_ai = normalize_response(ai)
         if useful_ai_response?(normalized_ai)
-          explicit_company_name = rule_based_result["company_name"]
+          explicit_data = rule_based_result
+          explicit_company_name = explicit_data["company_name"]
           normalized_ai["company_name"] = explicit_company_name if explicit_company_name.present?
+          explicit_salary = explicit_data.values_at("salary_min_jpy", "salary_max_jpy")
+          if explicit_salary.all?(&:present?)
+            normalized_ai["salary_min_jpy"], normalized_ai["salary_max_jpy"] = explicit_salary
+          end
           return [ normalized_ai, "ai" ]
         end
       end

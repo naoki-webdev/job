@@ -50,6 +50,11 @@ describe("JobImportDrawer", () => {
     expect(screen.getByText("0 / 8,000")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "求人URLについて" })).toBeInTheDocument();
     expect(screen.getByText("82")).toBeInTheDocument();
+    const modes = screen.getAllByRole("radio");
+    expect(modes[0]).toHaveAccessibleName("AI抽出");
+    expect(modes[0]).toBeChecked();
+    expect(modes[1]).toHaveAccessibleName("ルールベース");
+    expect(modes[1]).not.toBeChecked();
   });
 
   it("shows an empty after state before analysis", () => {
@@ -68,27 +73,28 @@ describe("JobImportDrawer", () => {
     );
 
     expect(screen.getByText("未分析")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "AI抽出" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "ルールベース" })).toBeChecked();
   });
 
-  it("shows an AI unavailable warning after selecting AI analysis", async () => {
+  it("defaults to AI again when reopening after selecting rule-based analysis", async () => {
     const user = userEvent.setup();
-
-    render(
-      <JobImportDrawer
-        open
-        aiEnabled
-        readOnly={false}
-        result={{ ...result, ai_available: false }}
-        loading={false}
-        error={null}
-        onClose={vi.fn()}
-        onAnalyze={vi.fn()}
-        onConfirm={vi.fn()}
-      />,
-    );
-
-    await user.click(screen.getByRole("radio", { name: "AI抽出" }));
+    const props = {
+      aiEnabled: true,
+      result: { ...result, ai_available: false },
+      loading: false,
+      error: null,
+      onClose: vi.fn(),
+      onAnalyze: vi.fn(),
+      onConfirm: vi.fn(),
+    };
+    const { rerender } = render(<JobImportDrawer {...props} open />);
 
     expect(screen.getByText("AI抽出を利用できないため、ルールベースで整理します。")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "ルールベース" }));
+    expect(screen.getByRole("radio", { name: "ルールベース" })).toBeChecked();
+    rerender(<JobImportDrawer {...props} open={false} />);
+    rerender(<JobImportDrawer {...props} open />);
+    expect(screen.getByRole("radio", { name: "AI抽出" })).toBeChecked();
   });
 });

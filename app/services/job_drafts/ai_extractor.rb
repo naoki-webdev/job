@@ -4,14 +4,37 @@ require "json"
 module JobDrafts
   class AiExtractor
     MODEL = "gemini-3.8-flash".freeze
+    FALLBACK_MODEL = "gemini-3.1-flash-lite".freeze
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models".freeze
     OPEN_TIMEOUT_SECONDS = 5
-    TIMEOUT_SECONDS = 30
+    TIMEOUT_SECONDS = 12
+    FALLBACK_TIMEOUT_SECONDS = 12
+    RETRY_TIMEOUT_SECONDS = 8
+    MAX_RETRIES = 1
+    MAX_RETRYABLE_RESPONSE_MILLISECONDS = 5_000
+    RETRY_BASE_DELAY_SECONDS = 0.5
+    MAX_RETRY_DELAY_SECONDS = 2.0
+    RETRYABLE_HTTP_STATUSES = %w[429 500 502 503 504].freeze
     MAX_OUTPUT_TOKENS = 1024
     MAX_STRING_LENGTH = 500
     MAX_ARRAY_ITEMS = 20
     MAX_SALARY_JPY = 1_000_000_000
     WORK_STYLES = %w[full_remote hybrid onsite].freeze
+
+    class ApiError < StandardError
+      attr_reader :status, :retry_after, :duration_ms
+
+      def initialize(status:, retry_after: nil, duration_ms:)
+        @status = status.to_s
+        @retry_after = retry_after
+        @duration_ms = duration_ms
+        super("Gemini API request failed with status #{@status}")
+      end
+
+      def retryable?
+        RETRYABLE_HTTP_STATUSES.include?(status)
+      end
+    end
     SCHEMA = {
       type: "OBJECT",
       properties: {
@@ -45,30 +68,63 @@ module JobDrafts
     def call
       return nil unless self.class.available?
 
-      body = http_request
-      payload = JSON.parse(extracted_text(body).to_s)
-      normalize_payload(payload)
-    rescue StandardError => error
-      Rails.logger.warn(
-        {
-          event: "external_api_error",
-          service: "gemini",
-          request_id: Current.request_id,
-          user_id: Current.user_id,
-          error_class: error.class.name
-        }.to_json
-      )
+      [ MODEL, FALLBACK_MODEL ].each_with_index do |model, model_index|
+        begin
+          body = http_request(model: model)
+          result = normalize_payload(JSON.parse(extracted_text(body).to_s))
+          return result if useful_payload?(result)
+
+          log_model_failure(model, "unusable_response")
+          log_model_fallback(model, "unusable_response") if model_index.zero?
+        rescue ApiError => error
+          log_api_error(model, error)
+          return nil unless model_index.zero? && error.retryable?
+
+          log_model_fallback(model, "http_#{error.status}")
+        rescue Net::OpenTimeout, Net::ReadTimeout, JSON::ParserError => error
+          log_model_failure(model, error.class.name)
+          return nil unless model_index.zero?
+
+          log_model_fallback(model, error.class.name)
+        rescue StandardError => error
+          log_model_failure(model, error.class.name)
+          return nil
+        end
+      end
+
       nil
     end
 
     private
 
-    def http_request
-      uri = endpoint_uri
+    def http_request(model: MODEL)
+      attempts = 0
+
+      begin
+        attempts += 1
+        @http_attempts = attempts
+        request_once(model: model, attempt: attempts)
+      rescue ApiError => error
+        quick_failure = error.duration_ms < MAX_RETRYABLE_RESPONSE_MILLISECONDS
+        raise unless error.retryable? && quick_failure && attempts <= MAX_RETRIES
+
+        wait_before_retry(retry_delay(error, attempts))
+        retry
+      end
+    end
+
+    def request_once(model:, attempt:)
+      uri = endpoint_uri(model: model)
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = true
       http.open_timeout = OPEN_TIMEOUT_SECONDS
-      http.read_timeout = TIMEOUT_SECONDS
+      http.read_timeout = if attempt > 1
+        RETRY_TIMEOUT_SECONDS
+      elsif model == MODEL
+        TIMEOUT_SECONDS
+      else
+        FALLBACK_TIMEOUT_SECONDS
+      end
 
       request = Net::HTTP::Post.new(uri.request_uri)
       request["content-type"] = "application/json"
@@ -77,28 +133,98 @@ module JobDrafts
 
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       response = nil
+      duration_ms = nil
       begin
         response = http.request(request)
       ensure
+        duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1_000).round(1)
         Rails.logger.info(
           {
             event: "external_api_request",
             service: "gemini",
-            model: MODEL,
+            model: model,
+            attempt: attempt,
             status: response&.code,
             request_id: Current.request_id,
             user_id: Current.user_id,
-            duration_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1_000).round(1)
+            duration_ms: duration_ms
           }.to_json
         )
       end
-      raise "Gemini API request failed with status #{response.code}" unless response.is_a?(Net::HTTPSuccess)
+      unless response.is_a?(Net::HTTPSuccess)
+        raise ApiError.new(status: response.code, retry_after: response["retry-after"], duration_ms: duration_ms)
+      end
 
       JSON.parse(response.body)
     end
 
-    def endpoint_uri
-      URI("#{BASE_URL}/#{MODEL}:generateContent")
+    def retry_delay(error, attempts)
+      retry_after = numeric_retry_after(error.retry_after)
+      return retry_after.clamp(0, MAX_RETRY_DELAY_SECONDS) if retry_after
+
+      (RETRY_BASE_DELAY_SECONDS * (2**(attempts - 1))).clamp(0, MAX_RETRY_DELAY_SECONDS)
+    end
+
+    def numeric_retry_after(value)
+      Float(value, exception: false) if value.present?
+    end
+
+    def wait_before_retry(seconds)
+      sleep(seconds) if seconds.positive?
+    end
+
+    def endpoint_uri(model: MODEL)
+      URI("#{BASE_URL}/#{model}:generateContent")
+    end
+
+    def useful_payload?(payload)
+      payload.is_a?(Hash) && payload.values_at(
+        "company_name", "salary_min_jpy", "salary_max_jpy", "work_style", "tech_stacks", "location"
+      ).any?(&:present?)
+    end
+
+    def log_api_error(model, error)
+      Rails.logger.warn(
+        {
+          event: "external_api_error",
+          service: "gemini",
+          model: model,
+          request_id: Current.request_id,
+          user_id: Current.user_id,
+          error_class: error.class.name,
+          error_status: error.status,
+          error_duration_ms: error.duration_ms,
+          attempts: @http_attempts || 0
+        }.to_json
+      )
+    end
+
+    def log_model_failure(model, reason)
+      Rails.logger.warn(
+        {
+          event: "external_api_error",
+          service: "gemini",
+          model: model,
+          request_id: Current.request_id,
+          user_id: Current.user_id,
+          error_class: reason,
+          attempts: @http_attempts || 0
+        }.to_json
+      )
+    end
+
+    def log_model_fallback(model, reason)
+      Rails.logger.warn(
+        {
+          event: "external_api_fallback",
+          service: "gemini",
+          primary_model: model,
+          fallback_model: FALLBACK_MODEL,
+          reason: reason,
+          request_id: Current.request_id,
+          user_id: Current.user_id
+        }.to_json
+      )
     end
 
     def extracted_text(body)

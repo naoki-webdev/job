@@ -38,8 +38,8 @@ type JobImportInputPaneProps = {
 };
 
 const MODE_OPTIONS: ReadonlyArray<{ value: JobDraftMode; labelKey: string }> = [
-  { value: "rule", labelKey: "import.mode_rule" },
   { value: "ai", labelKey: "import.mode_ai" },
+  { value: "rule", labelKey: "import.mode_rule" },
 ];
 
 export default function JobImportInputPane({
