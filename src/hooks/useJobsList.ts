@@ -342,10 +342,25 @@ export function useJobsList() {
   }, [invalidateDeleteRequest, invalidateFormRequest, cancelDetailRequest]);
 
   useEffect(() => {
-    if (detailId === null) { cancelDetailRequest(); setDrawerOpen(false); return; }
+    if (detailId === null) { setDrawerOpen(false); return; }
     if (selectedJobRef.current?.id !== detailId) void handleRowClick(detailId);
     else setDrawerOpen(true);
   }, [detailId, handleRowClick, cancelDetailRequest]);
+
+  const historyDetailRef = useRef(detailId);
+  historyDetailRef.current = detailId;
+  useEffect(() => {
+    const navigate = () => {
+      let next: number | null = null;
+      try {
+        const value: unknown = JSON.parse(new URL(window.location.href).searchParams.get("job") ?? "null");
+        if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) next = value;
+      } catch { /* 不正なIDは閉じた状態 */ }
+      if (next !== historyDetailRef.current) cancelDetailRequest();
+    };
+    window.addEventListener("popstate",navigate);
+    return () => window.removeEventListener("popstate",navigate);
+  }, [cancelDetailRequest]);
 
   const undoDelete = useCallback(async () => {
     if (deletedJobId === null) return;
