@@ -34,11 +34,13 @@ import {
 import { t } from "../i18n";
 import type { Job, JobFormPayload, MasterDataItem } from "../types/job";
 import { scrollToFirstInvalidField } from "../utils/formValidation";
+import JobDuplicateNotice from "./JobDuplicateNotice";
 import CompanyLogoField from "./CompanyLogoField";
 import FormErrorSummary from "./FormErrorSummary";
 import OverflowTooltipText from "./OverflowTooltipText";
 
 type JobFormDrawerProps = {
+  draftOwnerId?: number;
   open: boolean;
   mode: "create" | "edit";
   loadingOptions?: boolean;
@@ -54,6 +56,7 @@ type JobFormDrawerProps = {
 };
 
 function JobFormDrawer({
+  draftOwnerId,
   open,
   mode,
   loadingOptions = false,
@@ -77,7 +80,7 @@ function JobFormDrawer({
     handleBlur,
     handleChange,
     submit,
-  } = useJobFormDraft({ open, initialJob, initialDraft, locations, positions, techStacks });
+  } = useJobFormDraft({ draftOwnerId, open, initialJob, initialDraft, locations, positions, techStacks });
   const formRef = useRef<HTMLDivElement>(null);
   const formErrorMessages = [
     getFieldError("company_name"),
@@ -118,6 +121,11 @@ function JobFormDrawer({
             </Typography>
           </Box>
 
+          <Typography variant="caption" color="text.secondary">入力内容はこの端末に7日間、一時保存します。画像は再選択してください。</Typography>
+          <JobDuplicateNotice company={formValues.company_name} url={formValues.source_url} positionId={formValues.position_id} excludeId={initialJob?.id} />
+          <TextField size="small" label="次にやること" value={formValues.next_action ?? ""} inputProps={{ maxLength: 500 }} onChange={(e) => handleChange("next_action", e.target.value)} />
+          <TextField size="small" type="date" label="対応期限" slotProps={{ inputLabel: { shrink: true } }} value={formValues.action_due_on ?? ""} onChange={(e) => handleChange("action_due_on", e.target.value)} />
+          <TextField size="small" type="datetime-local" label="面接日時" slotProps={{ inputLabel: { shrink: true } }} value={formValues.interview_at ? new Date(new Date(formValues.interview_at).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""} onChange={(e) => handleChange("interview_at", e.target.value ? new Date(e.target.value).toISOString() : "")} />
           {submitError && (
             <Alert severity="error" role="alert" aria-live="assertive">
               {submitError}

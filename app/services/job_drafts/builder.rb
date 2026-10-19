@@ -18,6 +18,8 @@ module JobDrafts
         ai_available: AiExtractor.available?,
         source_text: @text,
         draft: build_draft(raw),
+        unmatched: unmatched_masters(raw),
+        evidence: extraction_evidence(raw),
         insights: build_insights(raw)
       }
     end
@@ -102,6 +104,27 @@ module JobDrafts
         location_id: location_record&.id,
         location_name: location_record&.name
       }
+    end
+
+    def unmatched_masters(raw)
+      raw = normalize_response(raw) || {}
+      {
+        tech_stacks: Array(raw["tech_stacks"]).reject { |name| matched_tech_stacks([ name ]).any? },
+        location: raw["location"].presence && matched_location(raw["location"]).nil? ? raw["location"] : nil
+      }
+    end
+
+    def extraction_evidence(raw)
+      raw = normalize_response(raw) || {}
+      lines = @text.lines.map(&:strip).reject(&:empty?)
+      patterns = {
+        "company_name" => ->(line) { raw["company_name"].present? && line.include?(raw["company_name"]) },
+        "salary_range" => ->(line) { line.match?(/年収|給与|報酬|月給/) },
+        "work_style" => ->(line) { line.match?(/リモート|在宅|出社|常駐/) },
+        "location" => ->(line) { raw["location"].present? && line.include?(raw["location"]) },
+        "tech_stacks" => ->(line) { Array(raw["tech_stacks"]).any? { |name| line.downcase.include?(name.downcase) } }
+      }
+      patterns.transform_values { |matches| lines.select(&matches).first(3) }.reject { |_, matches| matches.empty? }
     end
 
     def build_insights(raw)

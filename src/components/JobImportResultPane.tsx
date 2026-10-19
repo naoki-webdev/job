@@ -1,3 +1,4 @@
+import ImportEvidence from "./ImportEvidence";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -6,7 +7,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 import { t } from "../i18n";
-import type { JobDraftResponse, WorkStyle } from "../types/job";
+import type { JobDraftResponse, MasterDataItem, WorkStyle } from "../types/job";
 import { formatSalaryRange } from "../utils/jobFormat";
 
 type JobImportResultPaneProps = {
@@ -14,6 +15,7 @@ type JobImportResultPaneProps = {
   fellBackToRule: boolean;
   readOnly: boolean;
   onConfirm: () => void;
+  onAddMaster?: (kind: "tech_stacks" | "location", item: MasterDataItem) => void;
 };
 
 function renderList(items: string[]) {
@@ -63,7 +65,7 @@ function buildDraftSummary(result: JobDraftResponse) {
   ];
 }
 
-export default function JobImportResultPane({ result, fellBackToRule, readOnly, onConfirm }: JobImportResultPaneProps) {
+export default function JobImportResultPane({ result, fellBackToRule, readOnly, onConfirm, onAddMaster }: JobImportResultPaneProps) {
   const draftSummary = result ? buildDraftSummary(result) : null;
 
   return (
@@ -150,6 +152,7 @@ export default function JobImportResultPane({ result, fellBackToRule, readOnly, 
               </Stack>
             </Box>
 
+            <ImportEvidence result={result} readOnly={readOnly} onAdd={onAddMaster} />
             {!readOnly && (
               <Button variant="contained" size="large" onClick={onConfirm}>
                 {t("import.confirm")}

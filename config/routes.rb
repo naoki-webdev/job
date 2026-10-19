@@ -5,6 +5,7 @@ Rails.application.routes.draw do
     resource :session, only: [ :show, :create, :destroy ]
     post "admin/master_data_backfill", to: "admin_master_data_backfills#create"
     get "jobs/export", to: "jobs#export"
+    get "jobs/duplicates", to: "jobs#duplicates"
     resources :job_drafts, only: [ :create ]
     resource :scoring_preference, only: [ :show, :update ]
     resources :locations, only: [ :index, :create, :update, :destroy ]
@@ -15,6 +16,7 @@ Rails.application.routes.draw do
     resources :interview_questions, only: [ :index, :create, :update, :destroy ]
     resources :jobs, only: [ :index, :show, :create, :update, :destroy ] do
       post :analyze, on: :member
+      post :restore, on: :member
     end
   end
 

@@ -8,7 +8,7 @@ class JobsApiTest < ActionDispatch::IntegrationTest
     ActiveStorage::Attachment.delete_all
     ActiveStorage::Blob.delete_all
     JobTechStack.delete_all
-    Job.delete_all
+    Job.unscoped.delete_all
     ScoringPreference.delete_all
     PositiveKeyword.delete_all
     NegativeKeyword.delete_all
@@ -570,6 +570,35 @@ class JobsApiTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     assert_equal "", JSON.parse(response.body)["notes"]
+  end
+
+  test "restores a deleted job only for its owner within thirty seconds" do
+    patch "/api/jobs/#{@job2.id}", params: { job: { next_action: "書類を提出", action_due_on: "2026-10-25", interview_at: "2026-10-26T01:00:00Z" } }, headers: @headers
+    assert_response :success
+    assert_equal "書類を提出", response.parsed_body["next_action"]
+    delete "/api/jobs/#{@job2.id}", headers: @headers
+    assert_response :no_content
+    get "/api/jobs/#{@job2.id}", headers: @headers
+    assert_response :not_found
+    post "/api/jobs/#{@job2.id}/restore", headers: auth_headers(@other_user)
+    assert_response :not_found
+    post "/api/jobs/#{@job2.id}/restore", headers: @headers
+    assert_response :success
+    assert_equal "書類を提出", response.parsed_body["next_action"]
+    delete "/api/jobs/#{@job2.id}", headers: @headers
+    travel 31.seconds do
+      post "/api/jobs/#{@job2.id}/restore", headers: @headers
+      assert_response :not_found
+    end
+  end
+
+  test "duplicate candidates are scoped to the owner and position" do
+    get "/api/jobs/duplicates", params: { company_name: @job1.company_name, position_id: @job1.position_id }, headers: @headers
+    assert_response :success
+    assert_equal [ @job1.id ], response.parsed_body.map { |job| job["id"] }
+    get "/api/jobs/duplicates", params: { company_name: @job1.company_name, position_id: @frontend.id }, headers: @headers
+    assert_response :success
+    assert_empty response.parsed_body
   end
 
   test "destroy removes job" do

@@ -21,6 +21,8 @@ import type {
   SortDirection,
   WorkStyle,
 } from "../types/job";
+import { useQueryState } from "./useQueryState";
+import { restoreJob } from "../api/jobRequests";
 import { isAbortError } from "../utils/retry";
 
 type CachedJobsMetadata = {
@@ -54,6 +56,8 @@ export function useJobsList() {
   const statusRequestSequence = useRef(0);
   const analysisRequestSequence = useRef(0);
   const analysisAbortController = useRef<AbortController | null>(null);
+  const [detailId, setDetailId] = useQueryState<number | null>("job", null, (v): v is number | null => v === null || typeof v === "number" && Number.isSafeInteger(v) && v > 0);
+  const [deletedJobId, setDeletedJobId] = useState<number | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [rankingJobs, setRankingJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -61,13 +65,13 @@ export function useJobsList() {
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [formInitialDraft, setFormInitialDraft] = useState<Partial<JobFormPayload> | null>(null);
-  const [keyword, setKeyword] = useState("");
-  const [statuses, setStatuses] = useState<JobStatus[]>([]);
-  const [workStyles, setWorkStyles] = useState<WorkStyle[]>([]);
-  const [sort, setSort] = useState<JobSortKey>("score");
-  const [direction, setDirection] = useState<SortDirection>("desc");
-  const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(20);
+  const [keyword, setKeyword] = useQueryState("keyword", "", (v): v is string => typeof v === "string");
+  const [statuses, setStatuses] = useQueryState<JobStatus[]>("statuses", [], (v): v is JobStatus[] => Array.isArray(v) && v.every((x) => ["interested", "applied", "interviewing", "offer", "rejected"].includes(x)));
+  const [workStyles, setWorkStyles] = useQueryState<WorkStyle[]>("work_styles", [], (v): v is WorkStyle[] => Array.isArray(v) && v.every((x) => ["full_remote", "hybrid", "onsite"].includes(x)));
+  const [sort, setSort] = useQueryState<JobSortKey>("sort", "score", (v): v is JobSortKey => typeof v === "string" && ["company_name", "position", "status", "work_style", "salary_max", "score", "updated_at"].includes(v));
+  const [direction, setDirection] = useQueryState<SortDirection>("direction", "desc", (v): v is SortDirection => v === "asc" || v === "desc");
+  const [page, setPage] = useQueryState("page", 1, (v): v is number => typeof v === "number" && Number.isSafeInteger(v) && v > 0);
+  const [perPage, setPerPage] = useQueryState("per_page", 20, (v): v is number => typeof v === "number" && [10, 20, 50, 100].includes(v));
   const [recommendedJobIds, setRecommendedJobIds] = useState<number[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -324,6 +328,7 @@ export function useJobsList() {
       if (requestSequence !== detailRequestSequence.current || abortController.signal.aborted) return;
 
       setSelectedJob(job);
+      setDetailId(jobId);
       setDrawerOpen(true);
     } catch (detailError) {
       if (requestSequence !== detailRequestSequence.current || isAbortError(detailError)) return;
@@ -335,6 +340,21 @@ export function useJobsList() {
       }
     }
   }, [invalidateDeleteRequest, invalidateFormRequest, cancelDetailRequest]);
+
+  useEffect(() => {
+    if (detailId === null) { cancelDetailRequest(); setDrawerOpen(false); return; }
+    if (selectedJobRef.current?.id !== detailId) void handleRowClick(detailId);
+    else setDrawerOpen(true);
+  }, [detailId, handleRowClick, cancelDetailRequest]);
+
+  const undoDelete = useCallback(async () => {
+    if (deletedJobId === null) return;
+    try {
+      await restoreJob(deletedJobId);
+      setDeletedJobId(null);
+      await loadJobs(true);
+    } catch (error) { setError(getApiErrorMessage(error, "復元期限を過ぎたか、復元に失敗しました。")); }
+  }, [deletedJobId, loadJobs]);
 
   const openJobPreview = useCallback((job: Job) => {
     invalidateDeleteRequest();
@@ -353,7 +373,8 @@ export function useJobsList() {
     setStatusUpdating(false);
     cancelDetailRequest();
     setDrawerOpen(false);
-  }, [invalidateDeleteRequest, invalidateFormRequest, cancelDetailRequest]);
+    setDetailId(null);
+  }, [setDetailId, invalidateDeleteRequest, invalidateFormRequest, cancelDetailRequest]);
 
   const handleOpenCreateForm = useCallback((draft: Partial<JobFormPayload> | null = null) => {
     invalidateDeleteRequest();
@@ -432,7 +453,10 @@ export function useJobsList() {
         }
       }
 
-      if (requestSequence === formRequestSequence.current) setFormOpen(false);
+      if (requestSequence === formRequestSequence.current) {
+        setFormOpen(false);
+        window.dispatchEvent(new CustomEvent("job-draft-saved", { detail: formMode === "edit" ? editingJobId : "new" }));
+      }
       await loadJobs(true);
     } catch (error) {
       if (requestSequence === formRequestSequence.current) {
@@ -456,6 +480,8 @@ export function useJobsList() {
 
     try {
       await deleteJob(jobId);
+      setDeletedJobId(jobId);
+      if (selectedJobRef.current?.id === jobId) setDetailId(null);
       if (requestSequence === deleteRequestSequence.current && selectedJob?.id === jobId) {
         setDrawerOpen(false);
         setFormOpen(false);
@@ -564,6 +590,8 @@ export function useJobsList() {
   );
 
   return {
+    deletedJobId,
+    undoDelete,
     jobs,
     rankingJobs,
     selectedJob,

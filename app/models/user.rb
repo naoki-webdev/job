@@ -2,6 +2,7 @@ class User < ApplicationRecord
   has_secure_password
 
   has_many :jobs, dependent: :destroy
+  has_many :discarded_jobs, -> { unscope(where: :discarded_at).where.not(discarded_at: nil) }, class_name: "Job", dependent: :destroy
   has_many :positions, dependent: :destroy
   has_many :locations, dependent: :destroy
   has_many :tech_stacks, dependent: :destroy

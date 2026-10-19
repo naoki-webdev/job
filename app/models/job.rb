@@ -2,6 +2,10 @@ class Job < ApplicationRecord
   ALLOWED_LOGO_CONTENT_TYPES = %w[image/gif image/jpeg image/png image/svg+xml image/webp].freeze
   SOURCE_TEXT_MAX_LENGTH = 50_000
 
+  default_scope { where(discarded_at: nil) }
+
+  validates :next_action, length: { maximum: 500 }
+
   belongs_to :user
   belongs_to :position
   belongs_to :location

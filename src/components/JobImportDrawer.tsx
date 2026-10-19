@@ -19,6 +19,8 @@ type JobImportDrawerProps = {
   error: string | null;
   onClose: () => void;
   onAnalyze: (payload: { mode: JobDraftMode; text: string; url: string }) => Promise<void>;
+  draftOwnerId?: number;
+  onAddMaster?: (kind: "tech_stacks" | "location", item: import("../types/job").MasterDataItem) => void;
   onConfirm: () => void;
 };
 
@@ -31,11 +33,15 @@ export default function JobImportDrawer({
   error,
   onClose,
   onAnalyze,
+  draftOwnerId,
+  onAddMaster,
   onConfirm,
 }: JobImportDrawerProps) {
   const [mode, setMode] = useState<JobDraftMode>(aiEnabled ? "ai" : "rule");
-  const [text, setText] = useState("");
-  const [url, setUrl] = useState("");
+  const storageKey = draftOwnerId ? "job-import:" + draftOwnerId : null;
+  const [text, setText] = useState(() => { try { return storageKey ? window.localStorage.getItem(storageKey + ":text") ?? "" : ""; } catch { return ""; } });
+  const [url, setUrl] = useState(() => { try { return storageKey ? window.localStorage.getItem(storageKey + ":url") ?? "" : ""; } catch { return ""; } });
+  useEffect(() => { if (!storageKey) return; try { window.localStorage.setItem(storageKey + ":text", text); window.localStorage.setItem(storageKey + ":url", url); } catch { /* 入力は継続 */ } }, [storageKey, text, url]);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
@@ -100,6 +106,7 @@ export default function JobImportDrawer({
               fellBackToRule={fellBackToRule}
               readOnly={readOnly}
               onConfirm={onConfirm}
+              onAddMaster={onAddMaster}
             />
           </Box>
         </Stack>

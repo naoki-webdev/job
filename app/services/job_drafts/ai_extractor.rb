@@ -270,7 +270,7 @@ module JobDrafts
         - URL はサイト種別を判断する参考にするが、URL のドメイン名だけから会社名を推測しない。会社名や法人格が特定できなければ null にする。
         - work_style は記述から推定し、明記がなければ null。
         - tech_stacks は次のマスタを参考にし、近い名前があれば寄せる: #{master_names(:tech_stacks)}
-        - location は次のマスタから1つ選ぶ: #{master_names(:locations)}。マッチしなければ null。
+        - location は次のマスタを参考にする: #{master_names(:locations)}。一致するものがなければ、本文に明記された勤務地を原文の表記で返す。本文に勤務地がなければ null。
         - pros はユーザー登録済みの加点キーワードに本文が一致した場合のみ、その label を返す: #{evaluation_rule_lines(:positive_keywords)}
         - cons はユーザー登録済みの減点キーワードに本文が一致した場合のみ、その label を返す: #{evaluation_rule_lines(:negative_keywords)}
         - questions はユーザー登録済みの確認項目のみを返す: #{question_lines}

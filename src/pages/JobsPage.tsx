@@ -1,5 +1,7 @@
 import { Suspense, lazy } from "react";
 
+import Button from "@mui/material/Button";
+import JobComparison from "../components/JobComparison";
 import Alert from "@mui/material/Alert";
 import Container from "@mui/material/Container";
 import Stack from "@mui/material/Stack";
@@ -118,6 +120,8 @@ export default function JobsPage() {
           />
 
           <DashboardSummary items={summaryItems} />
+          {jobState.deletedJobId && <Alert severity="info" action={<Button onClick={() => void actions.undoDelete()}>元に戻す</Button>}>求人を削除しました。30秒以内なら復元できます。</Alert>}
+          <JobComparison jobs={jobs} />
 
           {error && <Alert severity="error">{error}</Alert>}
 
@@ -178,6 +182,7 @@ export default function JobsPage() {
         <Suspense fallback={null}>
           <JobFormDrawer
             open={formOpen}
+            draftOwnerId={user?.id}
             mode={formMode}
             initialJob={formMode === "edit" ? selectedJob : null}
             initialDraft={formMode === "create" ? formInitialDraft : null}
@@ -197,6 +202,8 @@ export default function JobsPage() {
         <Suspense fallback={null}>
           <JobImportDrawer
             open={importOpen}
+            draftOwnerId={user?.id}
+            onAddMaster={actions.handleAddImportMaster}
             readOnly={readOnly}
             aiEnabled={user?.ai_enabled ?? false}
             result={importResult}

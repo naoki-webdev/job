@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_10_02_131000) do
+ActiveRecord::Schema[8.0].define(version: 2026_10_19_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -115,11 +115,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_10_02_131000) do
     t.string "ai_analysis_input_digest"
     t.text "ai_analysis_error"
     t.datetime "ai_analysis_state_updated_at"
+    t.string "next_action", limit: 500
+    t.date "action_due_on"
+    t.datetime "interview_at"
+    t.datetime "discarded_at"
     t.index ["created_at"], name: "index_jobs_on_created_at"
     t.index ["location_id"], name: "index_jobs_on_location_id"
     t.index ["position_id"], name: "index_jobs_on_position_id"
     t.index ["score"], name: "index_jobs_on_score"
     t.index ["status"], name: "index_jobs_on_status"
+    t.index ["user_id", "discarded_at"], name: "index_jobs_on_user_id_and_discarded_at"
     t.index ["user_id"], name: "index_jobs_on_user_id"
     t.index ["work_style"], name: "index_jobs_on_work_style"
   end

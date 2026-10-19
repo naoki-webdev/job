@@ -15,6 +15,9 @@ class JobSerializer
   def as_json(*)
     payload = {
       "id" => @job.id,
+      "next_action" => @job.next_action,
+      "action_due_on" => @job.action_due_on,
+      "interview_at" => @job.interview_at,
       "company_name" => @job.company_name,
       "position_id" => @job.position_id,
       "position" => @job.position_name,

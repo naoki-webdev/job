@@ -3,7 +3,7 @@ require "test_helper"
 class SessionsApiTest < ActionDispatch::IntegrationTest
   setup do
     JobTechStack.delete_all
-    Job.delete_all
+    Job.unscoped.delete_all
     ScoringPreference.delete_all
     PositiveKeyword.delete_all
     NegativeKeyword.delete_all

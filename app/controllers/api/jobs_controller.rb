@@ -192,9 +192,32 @@ module Api
     def destroy
       Job.transaction do
         record_activity!("job.destroy", @job, metadata: { company_name: @job.company_name })
-        @job.destroy!
+        @job.update!(discarded_at: Time.current)
       end
+      PurgeDiscardedJobJob.set(wait: 31.seconds).perform_later(@job.id)
       head :no_content
+    end
+
+    def restore
+      @job = Job.unscoped.where(user_id: current_user.id).where("discarded_at >= ?", 30.seconds.ago).find(params[:id])
+      @job.update!(discarded_at: nil)
+      record_activity!("job.restore", @job)
+      render json: serialize_job(@job, include_ai_analysis: true)
+    end
+
+    def duplicates
+      scope = current_user.jobs
+      matches = []
+      if params[:source_url].present?
+        matches += scope.where(source_url: params[:source_url].to_s.strip).limit(5).to_a
+      end
+      if params[:company_name].present?
+        company_scope = scope.where("LOWER(TRIM(company_name)) = ?", params[:company_name].to_s.strip.downcase)
+        company_scope = company_scope.where(position_id: params[:position_id]) if params[:position_id].present?
+        matches += company_scope.limit(5).to_a
+      end
+      matches = matches.uniq.reject { |job| job.id.to_s == params[:exclude_id].to_s }.first(5)
+      render json: matches.map { |job| { id: job.id, company_name: job.company_name, position: job.position_name } }
     end
 
     def export
@@ -225,6 +248,9 @@ module Api
 
     def base_job_params
       job_params.permit(
+        :next_action,
+        :action_due_on,
+        :interview_at,
         :company_name,
         :status,
         :work_style,

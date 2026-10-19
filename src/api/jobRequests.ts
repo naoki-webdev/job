@@ -7,6 +7,10 @@ import type {
 } from "../types/job";
 import { API_BASE_URL, buildQuery, requestBlob, requestJson, requestVoid } from "./client";
 
+export function restoreJob(id: number): Promise<Job> {
+  return requestJson<Job>(API_BASE_URL + "/api/jobs/" + id + "/restore", { method: "POST", body: "{}" });
+}
+
 function hasJobFilePayload(job: JobFormPayload | JobUpdatePayload) {
   return Boolean(job.company_logo || job.remove_company_logo);
 }

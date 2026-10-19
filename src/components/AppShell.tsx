@@ -106,7 +106,7 @@ export default function AppShell({
                 justifyContent={{ xs: "space-between", md: "flex-end" }}
               >
                 {!readOnly && (
-                  <Button variant="contained" size="small" onClick={onCreateJob}>
+                  <Button variant="contained" size="small" onClick={() => onCreateJob()}>
                     {t("actions.create_job")}
                   </Button>
                 )}

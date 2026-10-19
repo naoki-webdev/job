@@ -36,6 +36,9 @@ export type JobSortKey =
 export type SortDirection = "asc" | "desc";
 
 export type Job = {
+  next_action?: string | null;
+  action_due_on?: string | null;
+  interview_at?: string | null;
   id: number;
   company_name: string;
   position_id: number;
@@ -134,6 +137,9 @@ export type JobFormPayload = Pick<
   | "location_id"
   | "notes"
 > & {
+  next_action?: string | null;
+  action_due_on?: string | null;
+  interview_at?: string | null;
   source_url?: string | null;
   source_text?: string;
   company_logo?: File | null;
@@ -162,6 +168,8 @@ export type JobDraftInsights = {
 };
 
 export type JobDraftResponse = {
+  unmatched?: { tech_stacks: string[]; location: string | null };
+  evidence?: Record<string, string[]>;
   mode: JobDraftMode;
   ai_available: boolean;
   source_text?: string;

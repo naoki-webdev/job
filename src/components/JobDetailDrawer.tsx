@@ -159,6 +159,7 @@ function JobDetailDrawer({
 
               <Divider />
 
+              {(job.next_action || job.action_due_on || job.interview_at) && <Box sx={{ p: 2.5 }}><Typography fontWeight={700}>次にやること</Typography><Typography>{job.next_action || "未設定"}</Typography>{job.action_due_on && <Typography color={job.action_due_on < new Date().toISOString().slice(0, 10) ? "error" : "text.secondary"}>対応期限：{job.action_due_on}</Typography>}{job.interview_at && <Typography>面接：{new Date(job.interview_at).toLocaleString("ja-JP")}</Typography>}</Box>}
               {job.source_text && (
                 <>
                   <Box component="section" sx={{ px: 2.5, py: 2.25 }}>

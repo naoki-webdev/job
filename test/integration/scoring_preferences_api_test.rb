@@ -5,7 +5,7 @@ class ScoringPreferencesApiTest < ActionDispatch::IntegrationTest
 
   setup do
     JobTechStack.delete_all
-    Job.delete_all
+    Job.unscoped.delete_all
     Location.delete_all
     Position.delete_all
     TechStack.delete_all

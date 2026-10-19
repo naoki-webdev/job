@@ -102,5 +102,8 @@ export function useJobImport({ openCreateForm }: UseJobImportParams) {
     handleCloseImport,
     handleAnalyzeImport,
     handleConfirmImport,
+    handleAddImportMaster: (kind: "tech_stacks" | "location", item: import("../types/job").MasterDataItem) => {
+      setImportResult((result) => !result ? result : ({ ...result, draft: { ...result.draft, ...(kind === "location" ? { location_id: item.id, location_name: item.name } : { tech_stack_ids: [...result.draft.tech_stack_ids, item.id], tech_stack_names: [...result.draft.tech_stack_names, item.name] }) }, unmatched: { tech_stacks: (result.unmatched?.tech_stacks ?? []).filter((name) => kind !== "tech_stacks" || name !== item.name), location: kind === "location" ? null : result.unmatched?.location ?? null } }));
+    },
   };
 }

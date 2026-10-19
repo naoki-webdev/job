@@ -43,6 +43,8 @@ function buildJobsListMock(overrides = {}) {
     summaryItems: [],
     recommendedJobIds: [1],
     loadJobs: vi.fn().mockResolvedValue(undefined),
+    deletedJobId: null,
+    undoDelete: vi.fn().mockResolvedValue(undefined),
     refreshSelectedJob: vi.fn().mockResolvedValue(undefined),
     handleKeywordChange: vi.fn(),
     handleStatusesChange: vi.fn(),

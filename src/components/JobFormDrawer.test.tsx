@@ -128,6 +128,9 @@ describe("JobFormDrawer", () => {
     await user.click(screen.getByRole("button", { name: "保存" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
+      next_action: "",
+      action_due_on: "",
+      interview_at: "",
       company_name: "株式会社テスト",
       position_id: 2,
       status: "interested",

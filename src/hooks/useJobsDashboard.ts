@@ -195,6 +195,7 @@ export function useJobsDashboard() {
 
   return {
     jobs: {
+      deletedJobId: jobsList.deletedJobId,
       items: jobsList.jobs,
       ranking: jobsList.rankingJobs,
       selected: jobsList.selectedJob,
@@ -252,6 +253,7 @@ export function useJobsDashboard() {
       masterData: masterData.masterDataError,
     },
     actions: {
+      undoDelete: jobsList.undoDelete,
       handleKeywordChange: jobsList.handleKeywordChange,
       handleStatusesChange: jobsList.handleStatusesChange,
       handleWorkStylesChange: jobsList.handleWorkStylesChange,
@@ -267,6 +269,7 @@ export function useJobsDashboard() {
       handleOpenImport: jobImport.handleOpenImport,
       handleCloseImport: jobImport.handleCloseImport,
       handleAnalyzeImport: jobImport.handleAnalyzeImport,
+      handleAddImportMaster: jobImport.handleAddImportMaster,
       handleConfirmImport: jobImport.handleConfirmImport,
       handleOpenMasterData,
       handleCloseMasterData,

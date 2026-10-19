@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { t } from "../i18n";
 import type { Job, JobFormPayload, MasterDataItem } from "../types/job";
@@ -17,6 +17,7 @@ export type JobFormDraft = Omit<JobFormPayload, "position_id" | "location_id" | 
 };
 
 type JobFormDraftParams = {
+  draftOwnerId?: number;
   open: boolean;
   initialJob: Job | null;
   initialDraft?: Partial<JobFormPayload> | null;
@@ -26,6 +27,9 @@ type JobFormDraftParams = {
 };
 
 export const emptyForm: JobFormDraft = {
+  next_action: "",
+  action_due_on: "",
+  interview_at: "",
   company_name: "",
   position_id: "",
   status: "interested",
@@ -43,6 +47,7 @@ export const emptyForm: JobFormDraft = {
 };
 
 export function useJobFormDraft({
+  draftOwnerId,
   open,
   initialJob,
   initialDraft,
@@ -50,6 +55,9 @@ export function useJobFormDraft({
   positions,
   techStacks,
 }: JobFormDraftParams) {
+  const storageKey = draftOwnerId ? "job-draft:" + draftOwnerId + ":" + (initialJob?.id ?? "new") : null;
+  const loadedKey = useRef<string | null>(null);
+  const changed = useRef(false);
   const [formValues, setFormValues] = useState<JobFormDraft>(emptyForm);
   const [touchedFields, setTouchedFields] = useState<Partial<Record<keyof JobFormDraft, boolean>>>({});
   const [submitAttempt, setSubmitAttempt] = useState(0);
@@ -57,12 +65,45 @@ export function useJobFormDraft({
   useEffect(() => {
     if (!open) return;
 
-    setFormValues(buildFormValues(initialJob, initialDraft));
+    let values = buildFormValues(initialJob, initialDraft);
+    if (storageKey && !initialDraft) {
+      try {
+        const stored = JSON.parse(window.localStorage.getItem(storageKey) ?? "null");
+        if (stored && stored.version === 1 && stored.values && typeof stored.savedAt === "number" && Date.now() - stored.savedAt < 7 * 86400000
+          && typeof stored.values.company_name === "string" && typeof stored.values.notes === "string" && typeof stored.values.source_text === "string"
+          && Array.isArray(stored.values.tech_stack_ids) && stored.values.tech_stack_ids.every((id: unknown) => typeof id === "number" && Number.isSafeInteger(id) && id > 0)
+          && ["salary_min", "salary_max", "position_id", "location_id"].every((key) => stored.values[key] === "" || typeof stored.values[key] === "number" && Number.isFinite(stored.values[key]))) {
+          values = { ...values, ...stored.values, company_logo: null, remove_company_logo: false };
+        }
+      } catch { /* 保存に失敗しても入力を続けられる */ }
+    }
+    loadedKey.current = storageKey;
+    changed.current = false;
+    setFormValues(values);
     setTouchedFields({});
     setSubmitAttempt(0);
-  }, [initialDraft, initialJob, open]);
+  }, [initialDraft, initialJob, open, storageKey]);
+
+  useEffect(() => {
+    if (!storageKey || loadedKey.current !== storageKey || !changed.current) return;
+    try {
+      const { company_logo: _file, ...values } = formValues;
+      window.localStorage.setItem(storageKey, JSON.stringify({ version: 1, savedAt: Date.now(), values }));
+    } catch { /* ストレージが使用不可でも入力を維持 */ }
+  }, [formValues, storageKey]);
+
+  useEffect(() => {
+    const clear = (event: Event) => {
+      if ((event as CustomEvent).detail !== (initialJob?.id ?? "new")) return;
+      changed.current = false;
+      if (storageKey) window.localStorage.removeItem(storageKey);
+    };
+    window.addEventListener("job-draft-saved", clear);
+    return () => window.removeEventListener("job-draft-saved", clear);
+  }, [initialJob?.id, storageKey]);
 
   const handleChange = useCallback(<K extends keyof JobFormDraft>(key: K, value: JobFormDraft[K]) => {
+    changed.current = true;
     setFormValues((prev) => ({ ...prev, [key]: value }));
   }, []);
 
@@ -112,6 +153,9 @@ export function useJobFormDraft({
 export function buildFormValues(job: Job | null, draft?: Partial<JobFormPayload> | null): JobFormDraft {
   if (job) {
     return {
+      next_action: job.next_action ?? "",
+      action_due_on: job.action_due_on ?? "",
+      interview_at: job.interview_at ?? "",
       company_name: job.company_name,
       position_id: job.position_id,
       status: job.status,
@@ -133,6 +177,9 @@ export function buildFormValues(job: Job | null, draft?: Partial<JobFormPayload>
 
   return {
     ...emptyForm,
+    next_action: draft.next_action ?? "",
+    action_due_on: draft.action_due_on ?? "",
+    interview_at: draft.interview_at ?? "",
     company_name: draft.company_name ?? emptyForm.company_name,
     position_id: draft.position_id ?? emptyForm.position_id,
     status: draft.status ?? emptyForm.status,
