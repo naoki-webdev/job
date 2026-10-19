@@ -4,6 +4,7 @@ import type {
   EvaluationKeywordPayload,
   InterviewQuestionPayload,
   MasterDataPayload,
+  MasterDataItem,
   ScoringPreferencePayload,
 } from "../types/job";
 import { useJobImport } from "./useJobImport";
@@ -269,7 +270,10 @@ export function useJobsDashboard() {
       handleOpenImport: jobImport.handleOpenImport,
       handleCloseImport: jobImport.handleCloseImport,
       handleAnalyzeImport: jobImport.handleAnalyzeImport,
-      handleAddImportMaster: jobImport.handleAddImportMaster,
+      handleAddImportMaster: (kind: "tech_stacks" | "location", item: MasterDataItem) => {
+        jobImport.handleAddImportMaster(kind, item);
+        void masterData.loadMasters(true);
+      },
       handleConfirmImport: jobImport.handleConfirmImport,
       handleOpenMasterData,
       handleCloseMasterData,
